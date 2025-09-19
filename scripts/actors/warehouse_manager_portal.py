@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # warehouse_manager_portal.py
 """
-Aurora Spark Theme - Warehouse Manager Portal
+E-commerce - Warehouse Manager Portal
 Combined functionality: Warehouse Manager + Logistics Manager + Inventory Staff
 Complete warehouse operations, inventory management, logistics coordination, and staff management
 """
@@ -20,7 +20,7 @@ from typing import Dict, Any, List, Optional
 
 
 class WarehouseManagerPortal:
-    """Aurora Spark Theme Warehouse Manager Portal - Combined Operations Management"""
+    """E-commerce Warehouse Manager Portal - Combined Operations Management"""
     
     def __init__(self):
         self.region_name = 'ap-south-1'
@@ -49,7 +49,7 @@ class WarehouseManagerPortal:
     def print_header(self, title: str):
         """Print formatted header"""
         print("\n" + "=" * 100)
-        print(f"🏭 [AURORA SPARK - WAREHOUSE MANAGER] {title}")
+        print(f"🏭 [E-COMMERCE - WAREHOUSE MANAGER] {title}")
         print("=" * 100)
         
     def print_success(self, message: str):

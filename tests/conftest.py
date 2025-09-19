@@ -42,8 +42,8 @@ def mock_dynamodb_resource():
         mock_inventory_table = Mock()
         
         mock_dynamodb.Table.side_effect = lambda name: {
-            'AuroraSparkTheme-Products': mock_products_table,
-            'AuroraSparkTheme-Inventory': mock_inventory_table
+            'EcommerceApp-Products': mock_products_table,
+            'EcommerceApp-Inventory': mock_inventory_table
         }.get(name, Mock())
         
         yield {

@@ -116,7 +116,7 @@ cp /opt/mycode/promode/promodeagro-mcp/mcp-config.json /opt/mycode/promode/promo
 Once configured, you'll have access to these MCP tools in Cursor:
 
 ### 📦 **browse-products**
-Browse and search products in the Aurora Spark e-commerce catalog.
+Browse and search products in the e-commerce catalog.
 
 **Parameters:**
 - `category` (string, optional): Filter by category

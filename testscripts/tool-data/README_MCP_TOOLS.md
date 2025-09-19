@@ -50,8 +50,8 @@ This directory contains comprehensive shell scripts for testing and documenting 
 ```
 
 **Available Tools**:
-- `browse-products` - Browse and search products in the Aurora Spark e-commerce catalog with filtering and search capabilities
-- `get-category-counts` - Get product counts by category for Aurora Spark e-commerce catalog
+- `browse-products` - Browse and search products in the e-commerce catalog with filtering and search capabilities
+- `get-category-counts` - Get product counts by category for e-commerce catalog
 - `all` - Show details for all tools
 
 ---
@@ -166,8 +166,8 @@ This directory contains comprehensive shell scripts for testing and documenting 
 ## 🔧 E-commerce MCP Tools
 
 ### Product Catalog Tools
-- **`browse-products`** - Browse and search products in the Aurora Spark e-commerce catalog with filtering and search capabilities including category filtering, keyword search, price ranges, and stock availability filters
-- **`get-category-counts`** - Get product counts by category for Aurora Spark e-commerce catalog to understand inventory distribution and product availability across different categories
+- **`browse-products`** - Browse and search products in the e-commerce catalog with filtering and search capabilities including category filtering, keyword search, price ranges, and stock availability filters
+- **`get-category-counts`** - Get product counts by category for e-commerce catalog to understand inventory distribution and product availability across different categories
 
 #### E-commerce Examples
 ```bash

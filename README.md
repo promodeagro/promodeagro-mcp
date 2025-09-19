@@ -1,14 +1,14 @@
-# 🛒 E-commerce MCP Server - Aurora Spark Product Catalog
+# 🛒 E-commerce MCP Server - Product Catalog
 
 **AI-powered e-commerce product catalog operations through Model Context Protocol (MCP)**
 
-A comprehensive MCP server providing intelligent product browsing and catalog analysis for the Aurora Spark e-commerce platform. Built with FastMCP framework and designed for seamless integration with AI agents and development environments like Cursor IDE.
+A comprehensive MCP server providing intelligent product browsing and catalog analysis for e-commerce platforms. Built with FastMCP framework and designed for seamless integration with AI agents and development environments like Cursor IDE.
 
 ## 🎯 Overview
 
 ### What is this MCP Server?
 
-The **E-commerce MCP Server** is a specialized tool server that enables AI agents to interact with Aurora Spark's product catalog through standardized MCP protocols. It provides intelligent product browsing, category analysis, and inventory insights with real-time data from AWS DynamoDB.
+The **E-commerce MCP Server** is a specialized tool server that enables AI agents to interact with e-commerce product catalogs through standardized MCP protocols. It provides intelligent product browsing, category analysis, and inventory insights with real-time data from AWS DynamoDB.
 
 ### Key Capabilities
 
@@ -29,11 +29,11 @@ The **E-commerce MCP Server** is a specialized tool server that enables AI agent
 
 ### 1. Installation
 
-```bash
+   ```bash
 cd /opt/mycode/promode/promodeagro-mcp
-
+   
 # Using uv (recommended - faster)
-uv sync
+   uv sync
 uv run python mcp_http_server.py
 
 # Or using pip
@@ -68,7 +68,7 @@ curl -X POST http://localhost:8000/tools/get-category-counts \
 ## 🛠️ Available MCP Tools
 
 ### 1. 🔍 **browse-products**
-*Browse and search products in the Aurora Spark e-commerce catalog*
+*Browse and search products in the e-commerce catalog*
 
 **Parameters:**
 - `category` (string, optional): Filter by product category (e.g., 'fruits', 'vegetables', 'dairy')
@@ -92,7 +92,7 @@ curl -X POST http://localhost:8000/tools/browse-products \
 ```
 
 ### 2. 📊 **get-category-counts**
-*Get product counts by category for Aurora Spark e-commerce catalog*
+*Get product counts by category for e-commerce catalog*
 
 **Parameters:** None required
 
@@ -187,22 +187,30 @@ class ProductInfo:
 
 ### AWS DynamoDB Tables
 
-#### **AuroraSparkTheme-Products**
+#### **EcommerceApp-Products**
 - **Primary Key**: `productID`
 - **Contains**: Product information, pricing, variants, attributes
 - **Structure**: Hierarchical product data with nested variants and pricing
 
-#### **AuroraSparkTheme-Inventory**  
+#### **EcommerceApp-Inventory**  
 - **Primary Key**: `productID` + sort key
 - **Contains**: Stock levels, batch information, expiry dates
 - **Structure**: Multiple inventory records per product for different batches
+
+> **💡 Table Name Migration**: If you have existing Aurora Spark tables, you can either:
+> 1. **Rename your DynamoDB tables** to match the new names, or  
+> 2. **Use environment variables** to map to existing tables:
+>    ```bash
+>    export PRODUCTS_TABLE_NAME=AuroraSparkTheme-Products
+>    export INVENTORY_TABLE_NAME=AuroraSparkTheme-Inventory
+>    ```
 
 ## 🎯 Cursor IDE Integration
 
 ### Setup Instructions
 
 1. **Install the MCP Server**
-   ```bash
+```bash
    cd /opt/mycode/promode/promodeagro-mcp
    uv sync  # Install dependencies
    ```
@@ -442,7 +450,7 @@ uv run python mcp_http_server.py --host 0.0.0.0 --port 8000
 
 ### Docker Deployment
 
-```bash
+  ```bash
 # Build Docker image
 docker build -t ecommerce-mcp-server .
 
@@ -505,7 +513,7 @@ GET  /tools                     # List available MCP tools
 ```
 
 #### MCP Protocol (JSON-RPC over HTTP)
-```bash  
+```bash
 POST /mcp/server/initialize     # MCP server initialization
 POST /mcp/tools/list           # List MCP tools
 POST /mcp/tools/call           # Call MCP tool
@@ -544,7 +552,7 @@ aws configure
 # Or set environment variables
 
 # Error: Access denied to DynamoDB tables  
-# Check IAM permissions for AuroraSparkTheme-Products and AuroraSparkTheme-Inventory
+# Check IAM permissions for EcommerceApp-Products and EcommerceApp-Inventory
 ```
 
 #### **2. Cursor MCP Tools Not Listed**
@@ -566,7 +574,7 @@ uv sync
 ```
 
 #### **4. Test Failures**
-```bash  
+```bash
 # Run individual test suites to isolate issues
 uv run python -m pytest tests/test_ecommerce_models.py -v
 
@@ -631,7 +639,7 @@ aws sts get-caller-identity
 
 ## 🚀 Getting Started
 
-Ready to explore Aurora Spark's product catalog? 
+Ready to explore the product catalog? 
 
 1. **Install the server**: `uv sync`
 2. **Configure Cursor**: Add MCP configuration  

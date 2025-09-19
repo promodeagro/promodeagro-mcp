@@ -76,7 +76,7 @@ export LOG_LEVEL="$LOG_LEVEL"
 
 echo -e "${GREEN}✅ Starting E-commerce MCP HTTP Server${NC}"
 echo -e "${YELLOW}📊 Available Tools:${NC}"
-echo -e "  • ${BLUE}browse-products${NC} - Browse Aurora Spark product catalog"
+echo -e "  • ${BLUE}browse-products${NC} - Browse product catalog"
 echo -e "  • ${BLUE}get-category-counts${NC} - Get product category statistics"
 echo ""
 echo -e "${YELLOW}🔗 Server Endpoints:${NC}"

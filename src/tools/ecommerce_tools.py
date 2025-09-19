@@ -1,4 +1,4 @@
-"""E-commerce tools for the Aurora Spark Customer Portal MCP Server."""
+"""E-commerce tools for the Customer Portal MCP Server."""
 
 import os
 from datetime import datetime

@@ -32,12 +32,12 @@ ECOMMERCE_DEFAULT_REGION = AWS_REGION
 
 # E-commerce DynamoDB Tables
 ECOMMERCE_TABLES = {
-    'users': 'AuroraSparkTheme-Users',
-    'products': 'AuroraSparkTheme-Products',
-    'inventory': 'AuroraSparkTheme-Inventory',
-    'orders': 'AuroraSparkTheme-Orders',
-    'delivery': 'AuroraSparkTheme-Delivery',
-    'system': 'AuroraSparkTheme-System'
+    'users': 'EcommerceApp-Users',
+    'products': 'EcommerceApp-Products',
+    'inventory': 'EcommerceApp-Inventory',
+    'orders': 'EcommerceApp-Orders',
+    'delivery': 'EcommerceApp-Delivery',
+    'system': 'EcommerceApp-System'
 }
 
 # Product Categories (commonly used in e-commerce)

@@ -93,7 +93,7 @@ If you prefer to run the server independently:
 Once configured, you'll have access to these MCP tools in Cursor:
 
 ### 📦 **browse-products**
-Browse and search products in the Aurora Spark e-commerce catalog.
+Browse and search products in the e-commerce catalog.
 
 **Parameters:**
 - `category` (string, optional): Filter by category (e.g., "vegetables", "fruits")

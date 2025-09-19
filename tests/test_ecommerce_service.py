@@ -26,8 +26,8 @@ class TestEcommerceServiceInitialization:
         service = EcommerceService()
         
         mock_boto3.assert_called_once_with('dynamodb', region_name='ap-south-1')
-        mock_dynamodb.Table.assert_any_call('AuroraSparkTheme-Products')
-        mock_dynamodb.Table.assert_any_call('AuroraSparkTheme-Inventory')
+        mock_dynamodb.Table.assert_any_call('EcommerceApp-Products')
+        mock_dynamodb.Table.assert_any_call('EcommerceApp-Inventory')
     
     @patch('src.services.ecommerce_service.boto3.resource')
     def test_service_with_custom_region(self, mock_boto3):

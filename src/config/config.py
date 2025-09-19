@@ -14,12 +14,12 @@ class EcommerceConfig:
                 'region': os.getenv('AWS_REGION', 'ap-south-1'),
                 'dynamodb': {
                     'tables': {
-                        'users': 'AuroraSparkTheme-Users',
-                        'products': 'AuroraSparkTheme-Products',
-                        'inventory': 'AuroraSparkTheme-Inventory',
-                        'orders': 'AuroraSparkTheme-Orders',
-                        'delivery': 'AuroraSparkTheme-Delivery',
-                        'system': 'AuroraSparkTheme-System'
+                        'users': 'EcommerceApp-Users',
+                        'products': 'EcommerceApp-Products',
+                        'inventory': 'EcommerceApp-Inventory',
+                        'orders': 'EcommerceApp-Orders',
+                        'delivery': 'EcommerceApp-Delivery',
+                        'system': 'EcommerceApp-System'
                     }
                 }
             },

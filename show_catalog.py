@@ -12,7 +12,7 @@ from src.models.ecommerce_models import ProductBrowseRequest, CategoryCountsRequ
 async def show_catalog():
     service = EcommerceService()
     
-    print('🏪 Aurora Spark E-commerce Product Catalog')
+    print('🏪 E-commerce Product Catalog')
     print('=' * 50)
     
     # Get category counts

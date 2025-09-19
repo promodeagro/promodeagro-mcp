@@ -20,7 +20,7 @@ from typing import Dict, Any, List, Optional
 
 
 class CustomerPortal:
-    """Aurora Spark Theme Customer Portal - Complete Shopping Experience"""
+    """E-commerce Customer Portal - Complete Shopping Experience"""
     
     def __init__(self):
         self.region_name = 'ap-south-1'
@@ -46,7 +46,7 @@ class CustomerPortal:
     def print_header(self, title: str):
         """Print formatted header"""
         print("\n" + "=" * 100)
-        print(f"🛒 [AURORA SPARK - CUSTOMER PORTAL] {title}")
+        print(f"🛒 [E-COMMERCE - CUSTOMER PORTAL] {title}")
         print("=" * 100)
         
     def print_success(self, message: str):
@@ -205,7 +205,7 @@ class CustomerPortal:
             
             # Automatically log in the user
             self.current_user = user_data
-            self.print_success(f"Welcome to Aurora Spark, {first_name}!")
+            self.print_success(f"Welcome to E-commerce Store, {first_name}!")
             input("\nPress Enter to continue to the main menu...")
             return True
             
@@ -1286,7 +1286,7 @@ class CustomerPortal:
         try:
             while not self.current_user:
                 self.clear_screen()
-                self.print_header("WELCOME TO AURORA SPARK CUSTOMER PORTAL")
+                self.print_header("WELCOME TO E-COMMERCE CUSTOMER PORTAL")
                 
                 print("🔐 Please login or register to continue:")
                 print("1. Login")
@@ -1311,7 +1311,7 @@ class CustomerPortal:
                     if not self.current_user:
                         input("\nPress Enter to continue...")
                 elif choice == '0':
-                    self.print_info("Thank you for visiting Aurora Spark!")
+                    self.print_info("Thank you for visiting E-commerce Store!")
                     return False
                 else:
                     self.print_error("Invalid option")
@@ -1398,7 +1398,7 @@ class CustomerPortal:
                     if not self.startup_authentication():
                         break
                 elif choice == '0':
-                    self.print_info("Thank you for using Aurora Spark Customer Portal!")
+                    self.print_info("Thank you for using E-commerce Customer Portal!")
                     break
                 else:
                     self.print_error("Invalid option")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # delivery_portal.py
 """
-Aurora Spark Theme - Delivery Portal
+E-commerce - Delivery Portal
 Complete delivery personnel functionality: Route management, order delivery, 
 payment collection, delivery confirmation, and GPS tracking
 """
@@ -21,7 +21,7 @@ from boto3.dynamodb.conditions import Key
 
 
 class DeliveryPortal:
-    """Aurora Spark Theme Delivery Portal - Complete Delivery Experience"""
+    """E-commerce Delivery Portal - Complete Delivery Experience"""
     
     def __init__(self):
         self.region_name = 'ap-south-1'
@@ -47,7 +47,7 @@ class DeliveryPortal:
     def print_header(self, title: str):
         """Print formatted header"""
         print("\n" + "=" * 100)
-        print(f"🚚 [AURORA SPARK - DELIVERY PORTAL] {title}")
+        print(f"🚚 [E-COMMERCE - DELIVERY PORTAL] {title}")
         print("=" * 100)
         
     def print_success(self, message: str):
@@ -76,7 +76,7 @@ class DeliveryPortal:
             self.clear_screen()
             self.print_header("DELIVERY PERSONNEL AUTHENTICATION")
             
-            print("🚚 Welcome to Aurora Spark Delivery Portal")
+            print("🚚 Welcome to E-commerce Delivery Portal")
             print("Please login with your delivery personnel credentials")
             print("-" * 60)
             print()
@@ -1104,7 +1104,7 @@ class DeliveryPortal:
                     
                     print("-" * 80)
                 
-                print("🚚 AURORA SPARK DELIVERY PORTAL")
+                print("🚚 E-COMMERCE DELIVERY PORTAL")
                 print("=" * 50)
                 
                 if not self.current_user:
@@ -1132,7 +1132,7 @@ class DeliveryPortal:
                 if choice == '0':
                     if self.current_user:
                         self.logout()
-                    self.print_info("Thank you for using Aurora Spark Delivery Portal!")
+                    self.print_info("Thank you for using E-commerce Delivery Portal!")
                     break
                 elif choice == '1':
                     if not self.current_user:
@@ -1174,7 +1174,7 @@ class DeliveryPortal:
             self.clear_screen()
             self.print_header("AUTHENTICATION")
             
-            print("🚚 Welcome to Aurora Spark Theme Delivery Portal")
+            print("🚚 Welcome to E-commerce Delivery Portal")
             print("Complete delivery management system for delivery personnel")
             print()
             print("🔐 Please authenticate to access the system")

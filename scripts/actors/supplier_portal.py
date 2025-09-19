@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # supplier_portal.py
 """
-Aurora Spark Theme - Supplier Portal
+E-commerce - Supplier Portal
 Complete supplier management, procurement, billing, and analytics
 Handles: Supplier onboarding, Purchase Orders, Invoices, Payments, Performance tracking
 """
@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Optional
 
 
 class SupplierPortal:
-    """Aurora Spark Theme Supplier Portal - Complete Procurement Management"""
+    """E-commerce Supplier Portal - Complete Procurement Management"""
     
     def __init__(self):
         self.region_name = 'ap-south-1'
@@ -43,7 +43,7 @@ class SupplierPortal:
     def print_header(self, title: str):
         """Print formatted header"""
         print("\n" + "=" * 100)
-        print(f"🏪 [AURORA SPARK - SUPPLIER PORTAL] {title}")
+        print(f"🏪 [E-COMMERCE - SUPPLIER PORTAL] {title}")
         print("=" * 100)
         
     def print_success(self, message: str):
@@ -1065,7 +1065,7 @@ class SupplierPortal:
                 print(f"🏪 Department: Supplier Management")
                 print()
             
-            print("🏪 AURORA SPARK THEME - SUPPLIER PORTAL")
+            print("🏪 E-COMMERCE - SUPPLIER PORTAL")
             print("Complete Supplier Management & Procurement Operations")
             print()
             print("📊 MAIN MENU OPTIONS:")
@@ -1171,7 +1171,7 @@ class SupplierPortal:
     def logout(self):
         """Logout current user"""
         self.print_success("Logged out successfully")
-        print("👋 Thank you for using Aurora Spark Theme Supplier Portal!")
+        print("👋 Thank you for using E-commerce Supplier Portal!")
         self.current_user = None
 
     def run(self):
@@ -1179,7 +1179,7 @@ class SupplierPortal:
         self.clear_screen()
         self.print_header("AUTHENTICATION")
         
-        print("🏪 Welcome to Aurora Spark Theme Supplier Portal")
+        print("🏪 Welcome to E-commerce Supplier Portal")
         print("Complete Supplier Management & Procurement Operations")
         print()
         print("🔐 Please authenticate to access the system")
@@ -1221,7 +1221,7 @@ class SupplierPortal:
 
 if __name__ == "__main__":
     try:
-        print("🏪 Starting Aurora Spark Theme Supplier Portal...")
+        print("🏪 Starting E-commerce Supplier Portal...")
         print("=" * 60)
         
         portal = SupplierPortal()
@@ -1229,7 +1229,7 @@ if __name__ == "__main__":
         
     except KeyboardInterrupt:
         print("\n\n👋 Supplier Portal terminated by user")
-        print("Thank you for using Aurora Spark Theme!")
+        print("Thank you for using E-commerce Store!")
         sys.exit(0)
     except Exception as e:
         print(f"\n❌ Fatal error in Supplier Portal: {str(e)}")

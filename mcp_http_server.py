@@ -205,7 +205,7 @@ server_state = {
 # Tool registry with direct function references
 TOOLS = {
     "browse-products": {
-        "description": "Browse and search products in the Aurora Spark e-commerce catalog with filtering and search capabilities",
+        "description": "Browse and search products in the e-commerce catalog with filtering and search capabilities",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -240,7 +240,7 @@ TOOLS = {
         }
     },
     "get-category-counts": {
-        "description": "Get product counts by category for Aurora Spark e-commerce catalog",
+        "description": "Get product counts by category for e-commerce catalog",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -585,8 +585,8 @@ async def initialize_server(request: Request):
 Provides AI-powered tools for e-commerce product catalog operations.
 
 Available tools:
-- browse-products: Browse and search products in the Aurora Spark e-commerce catalog with filtering capabilities
-- get-category-counts: Get product counts by category for Aurora Spark e-commerce catalog
+- browse-products: Browse and search products in the e-commerce catalog with filtering capabilities
+- get-category-counts: Get product counts by category for e-commerce catalog
                 """
             }
         }

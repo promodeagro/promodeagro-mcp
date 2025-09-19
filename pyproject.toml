@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ecommerce-mcp-server"
 version = "1.0.0"
-description = "E-commerce MCP Server for Aurora Spark product catalog operations"
+description = "E-commerce MCP Server for product catalog operations"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [

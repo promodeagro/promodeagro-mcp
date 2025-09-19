@@ -1,5 +1,5 @@
 """
-E-commerce Service - Product browsing and catalog management for Aurora Spark e-commerce platform.
+E-commerce Service - Product browsing and catalog management for e-commerce platforms.
 """
 
 import boto3
@@ -26,7 +26,13 @@ class EcommerceService:
         self.dynamodb = boto3.resource('dynamodb', region_name=self.region_name)
         
         # Initialize table references
-        self.products_table = self.dynamodb.Table('AuroraSparkTheme-Products')
+        # Note: Ensure DynamoDB tables are renamed to match these names, or use environment variables
+        # to map to existing table names (e.g., PRODUCTS_TABLE_NAME='AuroraSparkTheme-Products')
+        products_table_name = os.getenv('PRODUCTS_TABLE_NAME', 'EcommerceApp-Products')
+        inventory_table_name = os.getenv('INVENTORY_TABLE_NAME', 'EcommerceApp-Inventory')
+        
+        self.products_table = self.dynamodb.Table(products_table_name)
+        self.inventory_table = self.dynamodb.Table(inventory_table_name)
 
     async def browse_products(self, request: ProductBrowseRequest) -> ProductBrowseResult:
         """Browse and search products based on request parameters."""

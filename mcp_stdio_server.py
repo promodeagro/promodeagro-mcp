@@ -45,7 +45,7 @@ class MCPStdioServer:
         return {
             "browse-products": {
                 "name": "browse-products",
-                "description": "Browse and search products in the Aurora Spark e-commerce catalog with filtering and search capabilities",
+                "description": "Browse and search products in the e-commerce catalog with filtering and search capabilities",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -81,7 +81,7 @@ class MCPStdioServer:
             },
             "get-category-counts": {
                 "name": "get-category-counts",
-                "description": "Get product counts by category for Aurora Spark e-commerce catalog",
+                "description": "Get product counts by category for e-commerce catalog",
                 "inputSchema": {
                     "type": "object",
                     "properties": {},
@@ -97,7 +97,7 @@ class MCPStdioServer:
             "protocolVersion": "2024-11-05",
             "capabilities": self.capabilities,
             "serverInfo": self.server_info,
-            "instructions": "\n# E-commerce MCP Server\n\nProvides AI-powered tools for e-commerce product catalog operations.\n\nAvailable tools:\n- browse-products: Browse and search products in the Aurora Spark e-commerce catalog with filtering capabilities\n- get-category-counts: Get product counts by category for Aurora Spark e-commerce catalog\n"
+            "instructions": "\n# E-commerce MCP Server\n\nProvides AI-powered tools for e-commerce product catalog operations.\n\nAvailable tools:\n- browse-products: Browse and search products in the e-commerce catalog with filtering capabilities\n- get-category-counts: Get product counts by category for e-commerce catalog\n"
         }
 
     async def handle_tools_list(self, params: Dict[str, Any]) -> Dict[str, Any]:

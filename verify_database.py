@@ -25,8 +25,8 @@ async def verify_database():
     dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
     
     # Table names
-    products_table = dynamodb.Table('AuroraSparkTheme-Products')
-    inventory_table = dynamodb.Table('AuroraSparkTheme-Inventory')
+    products_table = dynamodb.Table('EcommerceApp-Products')
+    inventory_table = dynamodb.Table('EcommerceApp-Inventory')
     
     print('\n📊 1. RAW DATABASE - Products Table Sample:')
     print('-' * 50)
