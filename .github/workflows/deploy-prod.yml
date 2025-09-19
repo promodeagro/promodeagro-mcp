@@ -1,0 +1,252 @@
+name: Deploy Alert Engine to Production
+
+on:
+  push:
+    branches: [ main, production ]
+  workflow_dispatch: # Allow manual trigger
+    inputs:
+      confirm_deployment:
+        description: 'Type "DEPLOY" to confirm production deployment'
+        required: true
+        default: ''
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.10'
+
+jobs:
+  # Safety check for manual deployments
+  validate-input:
+    name: Validate Deployment Request
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Validate confirmation
+      run: |
+        if [ "${{ github.event.inputs.confirm_deployment }}" != "DEPLOY" ]; then
+          echo "❌ Deployment cancelled. You must type 'DEPLOY' to confirm."
+          exit 1
+        fi
+        echo "✅ Production deployment confirmed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [validate-input]
+    if: always() && (needs.validate-input.result == 'success' || github.event_name == 'push')
+    
+    # Use production environment for additional protection
+    environment: 
+      name: production
+      url: https://api.alert-engine.totogicore.com
+    
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: deploy/package-lock.json
+        
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Configure AWS credentials using OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_PROD }}
+        role-session-name: GitHubActions-DeployProduction
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Verify AWS credentials
+      run: |
+        aws sts get-caller-identity
+        echo "AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+        
+    - name: Create environment file for production
+      run: |
+        cd deploy
+        cat > .env.prod << EOF
+        # Production Environment Configuration
+        CDK_ENV=prod
+        PROJECT_NAME=alert-engine
+        BASE_DOMAIN=totogicore.com
+        CDK_DEFAULT_REGION=${{ env.AWS_REGION }}
+        CDK_DEFAULT_ACCOUNT=${{ env.AWS_ACCOUNT }}
+        
+        # Database configuration (Aurora DSQL - optional)
+        # DB_CLUSTER_ID=${{ secrets.DB_CLUSTER_ID_PROD }}
+        # DB_CLUSTER_ENDPOINT=${{ secrets.DB_CLUSTER_ENDPOINT_PROD }}
+        # DB_USERNAME=${{ secrets.DB_USERNAME_PROD }}
+        
+        # Application configuration
+        MCP_SERVER_PORT=8000
+        MCP_SERVER_HOST=0.0.0.0
+        LOG_LEVEL=INFO
+        
+        # Secrets ARN
+        SECRETS_ARN=${{ secrets.SECRETS_ARN_PROD }}
+        EOF
+        
+    - name: Install infrastructure dependencies
+      run: |
+        cd deploy
+        npm ci
+        
+    - name: Build TypeScript
+      run: |
+        cd deploy
+        npm run build
+        
+    - name: CDK Bootstrap (if needed)
+      run: |
+        cd deploy
+        echo "🚀 Checking CDK bootstrap status..."
+        
+        # Check if bootstrap is needed (project-specific)
+        if ! aws ssm get-parameter --name "/cdk-bootstrap/alerteng/version" --region ${{ env.AWS_REGION }} 2>/dev/null; then
+          echo "⚠️ CDK not bootstrapped. Checking for existing resources..."
+          
+          # Check if CDKToolkit stack exists in failed state
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
+          
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+            echo "🗑️ Deleting failed CDKToolkit stack..."
+            aws cloudformation delete-stack --stack-name CDKToolkit
+            
+            echo "⏳ Waiting for stack deletion..."
+            aws cloudformation wait stack-delete-complete --stack-name CDKToolkit
+          fi
+          
+          # Clean up orphaned resources that block bootstrap
+          echo "🧹 Cleaning orphaned CDK bootstrap resources..."
+          
+          # Delete ECR repository if it exists (project-specific)
+          ECR_REPO="cdk-alerteng-container-assets-${{ env.AWS_ACCOUNT }}-${{ env.AWS_REGION }}"
+          if aws ecr describe-repositories --repository-names "$ECR_REPO" --region ${{ env.AWS_REGION }} 2>/dev/null; then
+            echo "🗑️ Deleting orphaned ECR repository: $ECR_REPO"
+            aws ecr delete-repository --repository-name "$ECR_REPO" --force --region ${{ env.AWS_REGION }}
+          fi
+          
+          # Delete S3 bucket if it exists (handle versioning, project-specific)
+          S3_BUCKET="cdk-alerteng-assets-${{ env.AWS_ACCOUNT }}-${{ env.AWS_REGION }}"
+          if aws s3api head-bucket --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }} 2>/dev/null; then
+            echo "🗑️ Deleting orphaned S3 bucket: $S3_BUCKET"
+            
+            # Delete all current objects
+            aws s3 rm "s3://$S3_BUCKET" --recursive --region ${{ env.AWS_REGION }} || true
+            
+            # Delete all versioned objects and delete markers
+            echo "🗑️ Cleaning versioned objects and delete markers..."
+            aws s3api list-object-versions --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }} \
+              --query "Versions[].[Key,VersionId]" --output text | while read key version; do
+              if [ -n "$key" ] && [ -n "$version" ]; then
+                aws s3api delete-object --bucket "$S3_BUCKET" --key "$key" --version-id "$version" --region ${{ env.AWS_REGION }} || true
+              fi
+            done
+            
+            # Delete all delete markers
+            aws s3api list-object-versions --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }} \
+              --query "DeleteMarkers[].[Key,VersionId]" --output text | while read key version; do
+              if [ -n "$key" ] && [ -n "$version" ]; then
+                aws s3api delete-object --bucket "$S3_BUCKET" --key "$key" --version-id "$version" --region ${{ env.AWS_REGION }} || true
+              fi
+            done
+            
+            # Now delete the empty bucket
+            aws s3api delete-bucket --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }}
+          fi
+          
+          echo "🚀 Running CDK bootstrap with project-specific qualifier..."
+          npx cdk bootstrap aws://${{ env.AWS_ACCOUNT }}/${{ env.AWS_REGION }} --qualifier alerteng --require-approval never --force
+        else
+          echo "✅ CDK already bootstrapped"
+        fi
+        
+    - name: CDK Diff (Show production changes)
+      run: |
+        cd deploy
+        echo "🔍 Showing changes to be deployed to PRODUCTION:"
+        npx cdk diff --all || true
+        
+    - name: Pre-deployment safety check
+      run: |
+        echo "⚠️  PRODUCTION DEPLOYMENT STARTING"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "Account: ${{ env.AWS_ACCOUNT }}"
+        sleep 10  # Brief pause for visibility
+        
+    - name: Deploy to Production
+      run: |
+        cd deploy
+        npm run deploy:prod
+      env:
+        CDK_ENV: prod
+        
+    - name: Get deployment outputs
+      id: outputs
+      run: |
+        cd deploy
+        BACKEND_URL=$(aws cloudformation describe-stacks --stack-name alert-engine-backend-prod --query "Stacks[0].Outputs[?OutputKey=='BackendUrl'].OutputValue" --output text 2>/dev/null || echo "Not deployed yet")
+        
+        echo "backend_url=$BACKEND_URL" >> $GITHUB_OUTPUT
+        
+    - name: Run post-deployment health checks
+      run: |
+        echo "🏥 Running production health checks..."
+        
+        # Check if MCP server is responding
+        if [ "${{ steps.outputs.outputs.backend_url }}" != "Not deployed yet" ]; then
+          echo "Checking MCP server health..."
+          curl -f "${{ steps.outputs.outputs.backend_url }}/health" || echo "⚠️ MCP server health check failed"
+        fi
+        
+    - name: Create production deployment summary
+      run: |
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        # 🚀 Alert Engine PRODUCTION Deployment Complete
+        
+        **Environment:** Production
+        **Branch:** ${{ github.ref_name }}
+        **Commit:** ${{ github.sha }}
+        **Deployed by:** ${{ github.actor }}
+        **Deployment Time:** $(date -u)
+        
+        ## ⚠️ CRITICAL INFORMATION
+        - **AWS Account:** ${{ env.AWS_ACCOUNT }}
+        - **AWS Region:** ${{ env.AWS_REGION }}
+        - This is a PRODUCTION deployment affecting live users
+        
+        ## 🔗 Production URLs
+        - **MCP Server API:** ${{ steps.outputs.outputs.backend_url }}
+        
+        ## 📦 Deployed Stacks
+        - ✅ alert-engine-network-prod
+        - ✅ alert-engine-storage-prod  
+        - ✅ alert-engine-auth-prod
+        - ✅ alert-engine-backend-prod
+        
+        ## 🏥 Health Checks
+        Please monitor the MCP server for the next 30 minutes to ensure stability.
+        EOF
+        
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "🚨 ALERT ENGINE PRODUCTION DEPLOYMENT FAILED!"
+        echo "This requires immediate attention."
+        echo "Check logs and consider rollback if necessary."

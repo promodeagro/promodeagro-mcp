@@ -1,0 +1,39 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecr:*",
+                "ssm:PutParameter",
+                "ssm:GetParameter", 
+                "ssm:DeleteParameter",
+                "s3:*",
+                "ec2:*",
+                "ecs:*",
+                "cloudformation:*",
+                "iam:*",
+                "cognito-idp:*",
+                "secretsmanager:*",
+                "logs:*",
+                "elasticloadbalancing:*",
+                "certificatemanager:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "route53:GetChange",
+                "route53:ChangeResourceRecordSets",
+                "route53:ListResourceRecordSets",
+                "route53:GetHostedZone",
+                "route53:ListHostedZones"
+            ],
+            "Resource": [
+                "arn:aws:route53:::hostedzone/*",
+                "arn:aws:route53:::change/*"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ecommerce-mcp-server"
+version = "1.0.0"
+description = "E-commerce MCP Server for Aurora Spark product catalog operations"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "E-commerce MCP Team"}
+]
+keywords = ["ecommerce", "mcp", "catalog", "ai", "product-management"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    # Core data processing packages
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "python-dateutil>=2.8.2",
+    # MCP server framework
+    "mcp>=1.13.0",
+    # Web framework and API
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    # HTTP client for testing and integration
+    "httpx>=0.25.0",
+    "requests>=2.31.0",
+    # Async utilities
+    "nest-asyncio>=1.5.0",
+    # Logging and monitoring
+    "loguru>=0.7.0",
+    "psutil>=5.9.0",
+    # Configuration and environment
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    # AWS SDK for DynamoDB and other AWS services
+    "boto3>=1.38.5",
+    "botocore>=1.38.5",
+    # ML/AI dependencies for correlation analysis
+    "scikit-learn>=1.3.0",
+    "scipy>=1.11.0",
+    "networkx>=3.0.0",
+    "statsmodels>=0.14.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.25.0",
+]
+viz = [
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "plotly>=5.17.0",
+]
+export = [
+    "openpyxl>=3.1.0",
+    "xlsxwriter>=3.1.0",
+]
+
+[project.scripts]
+ecommerce-mcp-server = "src.server:main"
+mcp-http-server = "mcp_http_server:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/ecommerce-mcp-server"
+Documentation = "https://github.com/your-org/ecommerce-mcp-server#readme"
+Repository = "https://github.com/your-org/ecommerce-mcp-server.git"
+Issues = "https://github.com/your-org/ecommerce-mcp-server/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "."]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]

@@ -1,0 +1,107 @@
+# Simplified CloudFormation template - creates only the IAM role
+# Since GitHub OIDC provider already exists in your account
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'GitHub Actions IAM Role for CDK Deployments (OIDC provider already exists)'
+
+Parameters:
+  GitHubOrganization:
+    Type: String
+    Description: GitHub organization or username
+    Default: "trilogy-group"
+    
+  GitHubRepository:
+    Type: String
+    Description: GitHub repository name
+    Default: "Outbound_Call_Agent"
+    
+  BranchName:
+    Type: String
+    Description: Branch that can deploy (stage, main, etc.)
+    Default: "stage"
+
+Resources:
+  # IAM Role for GitHub Actions (OIDC provider already exists)
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "GitHubActions-${GitHubRepository}-${BranchName}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+              StringLike:
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${BranchName}'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: CDKDeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # IAM permissions for CDK
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PassRole
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/cdk-*"
+              
+              # CloudFormation permissions
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                Resource: "*"
+              
+              # S3 permissions for CDK assets
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource: 
+                  - !Sub "arn:aws:s3:::cdk-*-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:aws:s3:::cdk-*-${AWS::AccountId}-${AWS::Region}/*"
+              
+              # SSM Parameter Store (for CDK context)
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                  - ssm:GetParameters
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cdk-bootstrap/*"
+
+Outputs:
+  GitHubActionsRoleArn:
+    Description: ARN of the GitHub Actions role to use in workflows
+    Value: !GetAtt GitHubActionsRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-GitHubActionsRoleArn"
+  
+  SetupInstructions:
+    Description: Instructions for completing the setup
+    Value: !Sub |
+      1. Add this ARN as a secret named 'AWS_ROLE_TO_ASSUME' in your GitHub repository:
+         ${GitHubActionsRole.Arn}
+      
+      2. Go to: https://github.com/${GitHubOrganization}/${GitHubRepository}/settings/secrets/actions
+      
+      3. Add the following secrets:
+         - AWS_ROLE_TO_ASSUME: ${GitHubActionsRole.Arn}
+         - VAPI_API_KEY: (your VAPI API key)
+         - VAPI_PHONE_NUMBER: (your VAPI phone number)

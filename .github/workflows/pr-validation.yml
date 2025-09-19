@@ -1,0 +1,100 @@
+name: Alert Engine PR Validation
+
+on:
+  pull_request:
+    branches: [ stage, main ]
+    paths:
+      - 'deploy/**'
+      - 'src/**'
+      - 'mcp_http_server.py'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - '.github/workflows/**'
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '18'
+
+jobs:
+  validate:
+    name: Validate Changes
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: deploy/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd deploy
+        npm ci
+        
+    - name: TypeScript compilation check
+      run: |
+        cd deploy
+        npm run build
+        
+    - name: CDK Synth (validate templates)
+      run: |
+        cd deploy
+        # Create minimal env file for synth
+        cat > .env.stage << EOF
+        CDK_ENV=stage
+        PROJECT_NAME=alert-engine
+        BASE_DOMAIN=totogicore.com
+        CDK_DEFAULT_REGION=${{ env.AWS_REGION }}
+        CDK_DEFAULT_ACCOUNT=123456789012
+        MCP_SERVER_PORT=8000
+        MCP_SERVER_HOST=0.0.0.0
+        LOG_LEVEL=INFO
+        EOF
+        
+        npx cdk synth --all
+        
+    - name: Security scan with CDK-nag (optional)
+      run: |
+        cd deploy
+        # Install cdk-nag if you want security scanning
+        # npm install cdk-nag
+        # Add security scanning here
+        echo "Security scanning would go here"
+        
+    - name: Add PR comment with validation results
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const success = '${{ job.status }}' === 'success';
+          const icon = success ? '✅' : '❌';
+          const status = success ? 'passed' : 'failed';
+          
+          const comment = `
+          ## ${icon} Alert Engine CDK Validation ${status}
+          
+          **TypeScript compilation:** ${success ? '✅ Passed' : '❌ Failed'}
+          **CDK synthesis:** ${success ? '✅ Passed' : '❌ Failed'}
+          
+          ${success ? 
+            '🚀 This PR is ready for deployment to stage!' : 
+            '🔧 Please fix the issues above before merging.'
+          }
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });

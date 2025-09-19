@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "ecommerce-catalog": {
+      "command": "uv",
+      "args": [
+        "run", 
+        "--project", 
+        "/opt/mycode/promode/promodeagro-mcp",
+        "python", 
+        "mcp_stdio_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/opt/mycode/promode/promodeagro-mcp",
+        "LOG_LEVEL": "INFO",
+        "AWS_REGION": "ap-south-1"
+      },
+      "cwd": "/opt/mycode/promode/promodeagro-mcp"
+    }
+  }
+}

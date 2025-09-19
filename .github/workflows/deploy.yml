@@ -1,0 +1,70 @@
+name: Deploy Alert Engine Infrastructure (Main Branch)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: deploy/package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
+          role-session-name: github-actions-alert-engine-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create environment file for dev
+        run: |
+          cd deploy
+          cat > .env.dev << EOF
+          CDK_ENV=dev
+          PROJECT_NAME=alert-engine
+          BASE_DOMAIN=totogicore.com
+          CDK_DEFAULT_REGION=${{ env.AWS_REGION }}
+          CDK_DEFAULT_ACCOUNT=\$(aws sts get-caller-identity --query Account --output text)
+          MCP_SERVER_PORT=8000
+          MCP_SERVER_HOST=0.0.0.0
+          LOG_LEVEL=INFO
+          SECRETS_ARN=${{ secrets.SECRETS_ARN_DEV }}
+          EOF
+
+      - name: Install dependencies
+        working-directory: deploy
+        run: npm ci
+
+      - name: Build CDK project
+        working-directory: deploy
+        run: npm run build
+
+      - name: CDK Diff (PR only)
+        if: github.event_name == 'pull_request'
+        working-directory: deploy
+        run: npm run diff:dev
+
+      - name: CDK Deploy (main branch only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: deploy
+        run: npm run deploy:dev

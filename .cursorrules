@@ -1,0 +1,21 @@
+# E-commerce MCP Server Configuration for Cursor IDE
+
+## MCP Server Details
+- **Server Name**: E-commerce Product Catalog MCP Server
+- **Version**: 1.0.0
+- **Transport**: HTTP
+- **Port**: 8000 (default)
+
+## Available Tools
+1. **browse-products**: Browse and search products in Aurora Spark catalog
+   - Supports category filtering, search terms, price ranges
+   - Parameters: category, search_term, max_results, include_out_of_stock, min_price, max_price
+
+2. **get-category-counts**: Get product counts by category
+   - Returns category statistics and total product counts
+   - No parameters required
+
+## Usage in Cursor
+- The MCP server provides AI-powered e-commerce product catalog operations
+- Use for product browsing, category analysis, and inventory insights
+- Server runs on localhost:8000 by default

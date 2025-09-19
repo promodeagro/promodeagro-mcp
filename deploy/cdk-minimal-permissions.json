@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CDKMinimalPermissions",
+      "Effect": "Allow", 
+      "Action": [
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "s3:GetObject",
+        "s3:PutObject", 
+        "s3:ListBucket",
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ssm:GetParameter",
+        "cloudformation:*",
+        "iam:PassRole",
+        "iam:GetRole"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
