@@ -51,6 +51,9 @@ dependencies = [
     "scipy>=1.11.0",
     "networkx>=3.0.0",
     "statsmodels>=0.14.0",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=1.2.0",
 ]
 
 [project.optional-dependencies]
