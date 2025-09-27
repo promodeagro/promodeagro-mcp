@@ -1,6 +1,6 @@
-# Alert Engine GitHub Actions Integration
+# E-commerce MCP Server GitHub Actions Integration
 
-This guide explains how to set up and use GitHub Actions for automated deployment of the Alert Engine MCP server infrastructure.
+This guide explains how to set up and use GitHub Actions for automated deployment of the E-commerce MCP Server to AWS infrastructure.
 
 ## 📋 Table of Contents
 
@@ -16,10 +16,10 @@ This guide explains how to set up and use GitHub Actions for automated deploymen
 
 ## 🎯 Overview
 
-The Alert Engine project uses GitHub Actions for:
-- **Automated CDK deployments** across multiple environments
-- **Infrastructure as Code** management
-- **MCP server deployment** with health checks
+The E-commerce MCP Server project uses GitHub Actions for:
+- **Automated CloudFormation deployments** across multiple environments
+- **MCP server deployment** to AWS infrastructure
+- **Containerized application deployment** with optimization
 - **Multi-environment support** (dev/stage/prod)
 - **Security through OIDC** authentication
 
@@ -40,36 +40,37 @@ The Alert Engine project uses GitHub Actions for:
 - **Trigger**: Push to `dev` branch or manual dispatch
 - **Environment**: Development
 - **Approval**: None required
-- **Features**: Debug logging, relaxed health checks, auto-bootstrap
+- **Features**: MCP server build, container deployment, health checks
 
 ### Staging Workflow (`deploy-stage.yml`)
 - **Trigger**: Push to `stage` branch or manual dispatch
 - **Environment**: Staging
 - **Approval**: None required  
-- **Features**: Standard health checks, production-like configuration
+- **Features**: Production build, linting, deployment verification
 
 ### Production Workflow (`deploy-prod.yml`)
-- **Trigger**: Push to `main`/`production` branch or manual dispatch
+- **Trigger**: Published releases or manual dispatch
 - **Environment**: Production
-- **Approval**: Manual confirmation required (`DEPLOY` keyword)
-- **Features**: Strict health checks, deployment protection, rollback capabilities
+- **Approval**: Manual confirmation required (`DEPLOY_TO_PRODUCTION`)
+- **Features**: Security scans, health checks, deployment protection
 
 ### PR Validation (`pr-validation.yml`)
 - **Trigger**: Pull requests to `main` or `stage`
-- **Purpose**: CDK synthesis validation, TypeScript compilation
+- **Purpose**: MCP server build validation, linting, Python compilation
 - **Features**: No deployment, validation only
 
 ## 🚀 Quick Setup
 
 ### Prerequisites
 - AWS CLI configured with appropriate permissions
-- GitHub repository for alert-engine
+- GitHub repository for promodeagro-mcp
 - Access to AWS account for IAM role creation
+- Python 3.12+ and uv for local testing
 
 ### Option 1: Automated Setup (Recommended)
 
 ```bash
-cd /opt/mycode/trilogy/alert-engine/deploy
+cd /opt/mycode/promode/promodeagro-mcp/deploy2/git-workflow
 
 # For simplified setup (uses existing OIDC provider)
 ./setup-github-integration-simple.sh
@@ -88,11 +89,11 @@ The script will:
 1. **Deploy IAM Role**:
    ```bash
    aws cloudformation deploy \
-     --template-file github-role-only.yml \
-     --stack-name github-actions-role-alert-engine-dev \
+     --template-file ./git-workflow/github-role-only.yml \
+     --stack-name github-actions-role-promodeagro-mcp-dev \
      --parameter-overrides \
-       GitHubOrganization=YOUR_GITHUB_ORG \
-       GitHubRepository=alert-engine \
+       GitHubOrganization=promodeagro \
+       GitHubRepository=promodeagro-mcp \
        BranchName=dev \
      --capabilities CAPABILITY_NAMED_IAM
    ```
@@ -100,7 +101,7 @@ The script will:
 2. **Get Role ARN**:
    ```bash
    aws cloudformation describe-stacks \
-     --stack-name github-actions-role-alert-engine-dev \
+     --stack-name github-actions-role-promodeagro-mcp-dev \
      --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \
      --output text
    ```
@@ -109,27 +110,27 @@ The script will:
 
 ## 🔐 GitHub Secrets Configuration
 
-Go to your GitHub repository: `https://github.com/YOUR_ORG/alert-engine/settings/secrets/actions`
+Go to your GitHub repository: `https://github.com/promodeagro/promodeagro-mcp/settings/secrets/actions`
 
 ### Required Secrets
 
 | Secret Name | Environment | Description |
 |-------------|-------------|-------------|
 | `AWS_ROLE_TO_ASSUME_DEV` | Development | IAM role ARN for dev deployments |
-| `SECRETS_ARN_DEV` | Development | AWS Secrets Manager ARN for dev config |
 | `AWS_ROLE_TO_ASSUME_STAGE` | Staging | IAM role ARN for stage deployments |
-| `SECRETS_ARN_STAGE` | Staging | AWS Secrets Manager ARN for stage config |
 | `AWS_ROLE_TO_ASSUME_PROD` | Production | IAM role ARN for prod deployments |
-| `SECRETS_ARN_PROD` | Production | AWS Secrets Manager ARN for prod config |
 
 ### Example Secret Values
 
 ```bash
 # AWS_ROLE_TO_ASSUME_DEV
-arn:aws:iam::764119721991:role/GitHubActionsRole-alert-engine-dev
+arn:aws:iam::764119721991:role/GitHubActions-promodeagro-mcp-dev
 
-# SECRETS_ARN_DEV  
-arn:aws:secretsmanager:us-east-1:764119721991:secret:alert-engine-dev-secrets-AbCdEf
+# AWS_ROLE_TO_ASSUME_STAGE
+arn:aws:iam::764119721991:role/GitHubActions-promodeagro-mcp-stage
+
+# AWS_ROLE_TO_ASSUME_PROD
+arn:aws:iam::764119721991:role/GitHubActions-promodeagro-mcp-prod
 ```
 
 ## ⚙️ Environment Configuration
@@ -138,51 +139,48 @@ Each environment has specific configuration:
 
 ### Development Environment
 ```yaml
-CDK_ENV: dev
-PROJECT_NAME: alert-engine
-BASE_DOMAIN: totogicore.com
-LOG_LEVEL: DEBUG           # Debug logging
-MCP_SERVER_PORT: 8000
-MCP_SERVER_HOST: 0.0.0.0
+ENVIRONMENT: dev
+STACK_NAME: promodeagro-mcp-dev-stack
+DOMAIN_NAME: dev.promodeagro.com
+BUILD_ENVIRONMENT: development
+PYTHON_ENV: development
 ```
 
 **Features:**
-- Debug logging enabled
-- Relaxed health check timeouts
-- Cost-optimized resources
-- Automatic CDK bootstrap
+- Development build optimizations
+- Fast build times
+- Debug-friendly logging
+- Automatic deployment on push
 
 ### Staging Environment
 ```yaml
-CDK_ENV: stage
-PROJECT_NAME: alert-engine
-BASE_DOMAIN: totogicore.com
-LOG_LEVEL: INFO            # Standard logging
-MCP_SERVER_PORT: 8000
-MCP_SERVER_HOST: 0.0.0.0
+ENVIRONMENT: stage
+STACK_NAME: promodeagro-mcp-stage-stack
+DOMAIN_NAME: stage.promodeagro.com
+BUILD_ENVIRONMENT: staging
+PYTHON_ENV: production
 ```
 
 **Features:**
 - Production-like configuration
-- Standard health checks
-- Moderate resource allocation
-- Auto-scaling enabled
+- Optimized build for testing
+- SSL/TLS certificate validation
+- Deployment verification
 
 ### Production Environment
 ```yaml
-CDK_ENV: prod
-PROJECT_NAME: alert-engine
-BASE_DOMAIN: totogicore.com
-LOG_LEVEL: INFO            # Standard logging
-MCP_SERVER_PORT: 8000
-MCP_SERVER_HOST: 0.0.0.0
+ENVIRONMENT: prod
+STACK_NAME: promodeagro-mcp-prod-stack
+DOMAIN_NAME: promodeagro.com
+BUILD_ENVIRONMENT: production
+PYTHON_ENV: production
 ```
 
 **Features:**
 - High availability configuration
-- Strict health checks
-- Full resource allocation
-- Enhanced monitoring
+- Full optimization enabled
+- Security scanning
+- Performance monitoring
 - Manual deployment approval
 
 ## 🔄 Deployment Process
@@ -195,7 +193,7 @@ git checkout -b dev
 
 # Make your changes
 git add .
-git commit -m "feat: add new MCP server feature"
+git commit -m "feat: add new UI component"
 git push origin dev
 ```
 
@@ -247,21 +245,22 @@ git push origin main
 
 ```bash
 # Verify role exists
-aws iam get-role --role-name GitHubActionsRole-alert-engine-dev
+aws iam get-role --role-name GitHubActions-promodeagro-mcp-dev
 
 # Check GitHub secrets in repository settings
 ```
 
-#### ❌ "CDK bootstrap required"
+#### ❌ "CloudFormation stack deployment failed"
 
-**Cause**: CDK toolkit not bootstrapped in target account
+**Cause**: CloudFormation template issues or resource conflicts
 
 **Solution**:
 ```bash
-# Manual bootstrap (with correct AWS profile)
-export AWS_PROFILE=external-access
-cd /opt/mycode/trilogy/alert-engine/deploy
-npm run bootstrap
+# Check stack status
+aws cloudformation describe-stacks --stack-name promodeagro-mcp-dev-stack
+
+# Review stack events for errors
+aws cloudformation describe-stack-events --stack-name promodeagro-mcp-dev-stack
 ```
 
 #### ❌ "Permission denied" during deployment
@@ -273,9 +272,9 @@ npm run bootstrap
 ```bash
 # Update role policy
 aws iam put-role-policy \
-  --role-name GitHubActionsRole-alert-engine-dev \
-  --policy-name CDKDeploymentPolicy \
-  --policy-document file://cdk-permissions-policy.json
+  --role-name GitHubActions-promodeagro-mcp-dev \
+  --policy-name MCPDeploymentPolicy \
+  --policy-document file://iam-github-permissions.json
 ```
 
 #### ❌ "Stack name already exists"
@@ -291,20 +290,21 @@ aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE
 aws cloudformation delete-stack --stack-name OLD_STACK_NAME
 ```
 
-#### ❌ "Container image build failed"
+#### ❌ "Python build failed"
 
-**Cause**: Docker build issues or asset bundling problems
+**Cause**: Python errors, dependency issues, or build configuration problems
 
 **Solution**:
-1. Check `.dockerignore` excludes CDK output
-2. Verify Docker file exists and is correct
-3. Check asset exclusions in `backend-stack.ts`
+1. Check for Python compilation errors
+2. Verify all dependencies are installed (`uv sync`)
+3. Run `uv run python mcp_http_server.py` locally to reproduce the issue
+4. Check for missing environment variables
 
 ### Debug Steps
 
 1. **Check workflow logs**: GitHub Actions tab → Failed workflow → View logs
 2. **Verify AWS credentials**: Look for authentication step in logs
-3. **Check CDK synthesis**: Ensure `cdk synth` works locally
+3. **Check Python build**: Ensure `uv run python mcp_http_server.py` works locally
 4. **Validate secrets**: Ensure all required secrets are set
 5. **Test local deployment**: Run deployment scripts locally first
 
@@ -342,9 +342,9 @@ Modify health check URLs in workflows:
 ```yaml
 - name: Advanced Health Check
   run: |
-    # Custom health endpoints
-    curl -f "${{ steps.outputs.outputs.backend_url }}/health/detailed"
-    curl -f "${{ steps.outputs.outputs.backend_url }}/metrics"
+    # Custom health endpoints for MCP server
+    curl -f "https://dev.promodeagro.com/"
+    curl -f "https://dev.promodeagro.com/health" # if you have a health endpoint
 ```
 
 ### Blue/Green Deployments
@@ -354,12 +354,13 @@ For production zero-downtime deployments:
 ```yaml
 - name: Blue/Green Deploy
   run: |
-    # Deploy to green environment
-    cdk deploy --parameters BlueGreen=green
+    # Deploy to alternate container/ECS service
+    ./deploy/deploy.sh prod deploy-only
     
-    # Health check green
-    # Switch traffic
-    # Cleanup blue
+    # Health check new deployment
+    curl -f https://promodeagro.com/
+    
+    # Load balancer automatically routes to new container
 ```
 
 ## 📚 Additional Resources

@@ -11,27 +11,22 @@ You will be writing the MCP tools withing a well defined project structure and t
 
 1. Project Structure
 
+We are writing the plain python cli script inside /opt/mycode/promode/promodeagro-mcp/scripts/actors, where each scripts define the usecases fo a particular actor. These cli scripts directly talk with dynamodb and execute db operations for usecases.When the scripts works totally fine , then we convert those scripts as MCP tools so that outside world can call those tools. 
 
-2. Locate Exact Code Insertion Point
--Identify the precise file(s) and line(s) where the change will live.
--Never make sweeping edits across unrelated files.
--If multiple files are needed, justify each inclusion explicitly.
--Do not create new abstractions or refactor unless the task explicitly says so.
+2. MCP Tools structure
+-For each MCP tool , we create a toolname-tool.py file inside src/tools/
+-The service for that tool is implemented inside src/service/toolname-service.py
+-The model for that tool is implemented inside src/models/toolname-model.py
+-Any utility file is written inside src/utils
+-config is written inside src/config
 
-3. Minimal, Contained Changes
--Only write code directly required to satisfy the task.
--Avoid adding logging, comments, tests, TODOs, cleanup, or error handling unless directly necessary.
--No speculative changes or “while we’re here” edits.
--All logic should be isolated to not break existing flows.
+For every Tool, we need to add Tool support in src/server.py and inside the wrappers mcp_http_server.py, /opt/mycode/promode/promodeagro-mcp/mcp_stdio_server.py
 
-4. Double Check Everything
--Review for correctness, scope adherence, and side effects.
--Ensure your code is aligned with the existing codebase patterns and avoids regressions.
--Explicitly verify whether anything downstream will be impacted.
+3. Test Structure of the Tools
+- After writing every tool, we write pytest for every source files of the tool, say tool file, service file , model file
+- Then we modify the test scripts inside testscripts/tool-data , update them , they are basically the metadata for all tools
+- Then for every Tool , we write curl based test scripts inside testscripts/tools-test/
 
-5. Deliver Clearly
--Summarize what was changed and why.
--List every file modified and what was done in each.
--If there are any assumptions or risks, flag them for review.
+4. Document update for the Tools
+- For every tool update , we update the testscripts/tool-data/README_MCP_TOOLS.md and main readme README.md
 
-Reminder: You are not a co-pilot, assistant, or brainstorm partner. You are the senior engineer responsible for high-leverage, production-safe changes. Do not improvise. Do not over-engineer. Do not deviate

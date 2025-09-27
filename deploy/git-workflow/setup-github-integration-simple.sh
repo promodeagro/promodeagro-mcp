@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Alert Engine GitHub Actions Integration Setup Script
+# E-commerce MCP Server GitHub Actions Integration Setup Script
 # Uses the existing OIDC provider and creates only the IAM role
 
 set -e
@@ -24,11 +24,11 @@ print_header() {
     echo
 }
 
-print_header "Alert Engine GitHub Actions CDK Integration Setup"
+print_header "E-commerce MCP Server GitHub Actions Integration Setup"
 
 # Check if we're in the right directory
-if [ ! -f "cdk.json" ]; then
-    print_color $RED "Error: Please run this script from the deploy directory"
+if [ ! -f "github-oidc-setup.yml" ]; then
+    print_color $RED "Error: Please run this script from the git-workflow directory"
     exit 1
 fi
 
@@ -45,11 +45,11 @@ print_color $GREEN "✓ Found existing GitHub OIDC provider: $OIDC_PROVIDER_ARN"
 
 # Get GitHub repository information
 print_color $YELLOW "Please provide your GitHub repository information:"
-read -p "GitHub username/organization [trilogy-group]: " GITHUB_ORG
-GITHUB_ORG=${GITHUB_ORG:-trilogy-group}
+read -p "GitHub username/organization [promodeagro]: " GITHUB_ORG
+GITHUB_ORG=${GITHUB_ORG:-promodeagro}
 
-read -p "Repository name [alert-engine]: " GITHUB_REPO
-GITHUB_REPO=${GITHUB_REPO:-alert-engine}
+read -p "Repository name [promodeagro-mcp]: " GITHUB_REPO
+GITHUB_REPO=${GITHUB_REPO:-promodeagro-mcp}
 
 read -p "Branch for deployment [dev]: " BRANCH_NAME
 BRANCH_NAME=${BRANCH_NAME:-dev}
@@ -60,8 +60,8 @@ print_color $YELLOW "Deploying CloudFormation stack for GitHub Actions IAM role.
 
 # Deploy the role-only stack
 aws cloudformation deploy \
-    --template-file github-role-only.yml \
-    --stack-name github-actions-role-alert-engine-${BRANCH_NAME} \
+    --template-file ./github-role-only.yml \
+    --stack-name github-actions-role-promodeagro-mcp-${BRANCH_NAME} \
     --parameter-overrides \
         GitHubOrganization=$GITHUB_ORG \
         GitHubRepository=$GITHUB_REPO \
@@ -78,7 +78,7 @@ fi
 
 # Get the role ARN
 ROLE_ARN=$(aws cloudformation describe-stacks \
-    --stack-name github-actions-role-alert-engine-${BRANCH_NAME} \
+    --stack-name github-actions-role-promodeagro-mcp-${BRANCH_NAME} \
     --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \
     --output text \
     --region ${AWS_REGION:-us-east-1})
@@ -112,7 +112,7 @@ echo "│ Secret Name                    │ Value                              
 echo "├──────────────────────────────────────────────────────────────────────────────────────────┤"
 printf "│ %-30s │ %-57s │\n" "AWS_ROLE_TO_ASSUME${SECRET_SUFFIX}" "$ROLE_ARN"
 echo "├──────────────────────────────────────────────────────────────────────────────────────────┤"
-printf "│ %-30s │ %-57s │\n" "SECRETS_ARN${SECRET_SUFFIX}" "(your AWS Secrets Manager ARN for ${BRANCH_NAME})"
+printf "│ %-30s │ %-57s │\n" "AWS_REGION" "${AWS_REGION:-us-east-1}"
 echo "└──────────────────────────────────────────────────────────────────────────────────────────┘"
 echo
 
@@ -130,8 +130,8 @@ if [[ $CREATE_MORE =~ ^[Yy]$ ]]; then
         print_color $YELLOW "Creating $ENV environment role (branch: $ENV_BRANCH)..."
         
         aws cloudformation deploy \
-            --template-file github-role-only.yml \
-            --stack-name github-actions-role-alert-engine-${ENV} \
+            --template-file ./github-role-only.yml \
+            --stack-name github-actions-role-promodeagro-mcp-${ENV} \
             --parameter-overrides \
                 GitHubOrganization=$GITHUB_ORG \
                 GitHubRepository=$GITHUB_REPO \
@@ -140,7 +140,7 @@ if [[ $CREATE_MORE =~ ^[Yy]$ ]]; then
             --region ${AWS_REGION:-us-east-1}
         
         ENV_ROLE_ARN=$(aws cloudformation describe-stacks \
-            --stack-name github-actions-role-alert-engine-${ENV} \
+            --stack-name github-actions-role-promodeagro-mcp-${ENV} \
             --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \
             --output text \
             --region ${AWS_REGION:-us-east-1})
@@ -173,16 +173,17 @@ print_header "Next Steps"
 
 print_color $YELLOW "1. Add the secrets to GitHub (see table above)"
 print_color $YELLOW "2. Create a '$BRANCH_NAME' branch if it doesn't exist" 
-print_color $YELLOW "3. Set up your Secrets Manager ARN in AWS"
+print_color $YELLOW "3. Ensure your domain and SSL certificate are configured in AWS"
 print_color $YELLOW "4. Push your code to trigger the first deployment"
 echo
 
-print_header "Alert Engine Specific Configuration"
-print_color $BLUE "Your alert-engine project is now configured for:"
-echo "• MCP Server deployment"
+print_header "E-commerce MCP Server Specific Configuration"
+print_color $BLUE "Your promodeagro-mcp project is now configured for:"
+echo "• MCP server deployment to AWS infrastructure"
 echo "• Multi-environment support (dev/stage/prod)"
-echo "• Automatic CDK bootstrap"
+echo "• Automatic CloudFormation stack management"
 echo "• Health checks for MCP server endpoints"
+echo "• SSL/TLS certificate management"
 echo
 
-print_color $GREEN "Alert Engine deployment ready! 🚀"
+print_color $GREEN "E-commerce MCP Server deployment ready! 🚀"

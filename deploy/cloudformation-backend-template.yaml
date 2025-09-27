@@ -216,6 +216,22 @@ Resources:
                   - s3:GetBucketLocation
                   - s3:ListBucketVersions
                 Resource: '*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:DescribeTable
+                Resource: 
+                  - 'arn:aws:dynamodb:*:*:table/AuroraSparkTheme-Products'
+                  - 'arn:aws:dynamodb:*:*:table/AuroraSparkTheme-Products/index/*'
       Tags:
         - Key: Name
           Value: !Sub '${ProjectName}-task-role-${Environment}'
@@ -408,6 +424,10 @@ Resources:
         ScaleOutCooldown: 120
 
 Outputs:
+  StackName:
+    Description: 'Backend stack name'
+    Value: !Ref 'AWS::StackName'
+
   ServiceName:
     Description: 'ECS service name'
     Value: !GetAtt ECSService.Name

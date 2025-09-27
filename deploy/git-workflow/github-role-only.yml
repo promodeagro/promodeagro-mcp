@@ -2,23 +2,23 @@
 # Since GitHub OIDC provider already exists in your account
 
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'GitHub Actions IAM Role for CDK Deployments (OIDC provider already exists)'
+Description: 'GitHub Actions IAM Role for E-commerce MCP Server Deployments (OIDC provider already exists)'
 
 Parameters:
   GitHubOrganization:
     Type: String
     Description: GitHub organization or username
-    Default: "trilogy-group"
+    Default: "promodeagro"
     
   GitHubRepository:
     Type: String
     Description: GitHub repository name
-    Default: "Outbound_Call_Agent"
+    Default: "promodeagro-mcp"
     
   BranchName:
     Type: String
-    Description: Branch that can deploy (stage, main, etc.)
-    Default: "stage"
+    Description: Branch that can deploy (dev, stage, main, etc.)
+    Default: "dev"
 
 Resources:
   # IAM Role for GitHub Actions (OIDC provider already exists)
@@ -37,54 +37,108 @@ Resources:
               StringEquals:
                 'token.actions.githubusercontent.com:aud': sts.amazonaws.com
               StringLike:
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${BranchName}'
+                'token.actions.githubusercontent.com:sub': 
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${BranchName}'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/main'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/develop'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/release/*'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:pull/*'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:environment:production'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:environment:staging'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:environment:development'
+                  - !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:environment:cleanup-*'
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/PowerUserAccess
       Policies:
-        - PolicyName: CDKDeploymentPolicy
+        - PolicyName: UIDeploymentPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # IAM permissions for CDK
+              # CloudFormation permissions for stack management
               - Effect: Allow
                 Action:
-                  - iam:CreateRole
-                  - iam:DeleteRole
-                  - iam:PutRolePolicy
-                  - iam:DeleteRolePolicy
-                  - iam:AttachRolePolicy
-                  - iam:DetachRolePolicy
-                  - iam:PassRole
-                  - iam:GetRole
-                  - iam:GetRolePolicy
-                  - iam:ListRolePolicies
-                  - iam:ListAttachedRolePolicies
-                  - iam:TagRole
-                  - iam:UntagRole
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/cdk-*"
-              
-              # CloudFormation permissions
-              - Effect: Allow
-                Action:
-                  - cloudformation:*
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:ListStacks
                 Resource: "*"
               
-              # S3 permissions for CDK assets
+              # S3 permissions for static website hosting
               - Effect: Allow
                 Action:
-                  - s3:*
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:GetBucketLocation
+                  - s3:GetBucketPolicy
+                  - s3:PutBucketPolicy
+                  - s3:DeleteBucketPolicy
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketWebsite
+                  - s3:PutBucketWebsite
+                  - s3:DeleteBucketWebsite
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:GetObjectVersion
+                  - s3:DeleteObjectVersion
+                  - s3:PutBucketVersioning
+                  - s3:GetBucketVersioning
                 Resource: 
-                  - !Sub "arn:aws:s3:::cdk-*-${AWS::AccountId}-${AWS::Region}"
-                  - !Sub "arn:aws:s3:::cdk-*-${AWS::AccountId}-${AWS::Region}/*"
+                  - "arn:aws:s3:::promodeagro-mcp-*"
+                  - "arn:aws:s3:::promodeagro-mcp-*/*"
               
-              # SSM Parameter Store (for CDK context)
+              # CloudFront permissions for CDN management
               - Effect: Allow
                 Action:
-                  - ssm:GetParameter
-                  - ssm:PutParameter
-                  - ssm:DeleteParameter
-                  - ssm:GetParameters
-                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cdk-bootstrap/*"
+                  - cloudfront:CreateDistribution
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:GetDistribution
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:ListDistributions
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                  - cloudfront:ListInvalidations
+                Resource: "*"
+              
+              # Route53 permissions for DNS management
+              - Effect: Allow
+                Action:
+                  - route53:GetHostedZone
+                  - route53:ChangeResourceRecordSets
+                  - route53:GetChange
+                  - route53:ListResourceRecordSets
+                Resource: "*"
+              
+              # Certificate Manager permissions for SSL
+              - Effect: Allow
+                Action:
+                  - acm:RequestCertificate
+                  - acm:DescribeCertificate
+                  - acm:ListCertificates
+                  - acm:GetCertificate
+                  - acm:DeleteCertificate
+                  - acm:AddTagsToCertificate
+                Resource: "*"
+              
+              # WAF permissions for security
+              - Effect: Allow
+                Action:
+                  - wafv2:CreateWebACL
+                  - wafv2:UpdateWebACL
+                  - wafv2:DeleteWebACL
+                  - wafv2:GetWebACL
+                  - wafv2:ListWebACLs
+                  - wafv2:AssociateWebACL
+                  - wafv2:DisassociateWebACL
+                Resource: "*"
 
 Outputs:
   GitHubActionsRoleArn:
@@ -96,12 +150,12 @@ Outputs:
   SetupInstructions:
     Description: Instructions for completing the setup
     Value: !Sub |
-      1. Add this ARN as a secret named 'AWS_ROLE_TO_ASSUME' in your GitHub repository:
+      1. Add this ARN as a secret in your GitHub repository:
          ${GitHubActionsRole.Arn}
       
       2. Go to: https://github.com/${GitHubOrganization}/${GitHubRepository}/settings/secrets/actions
       
-      3. Add the following secrets:
-         - AWS_ROLE_TO_ASSUME: ${GitHubActionsRole.Arn}
-         - VAPI_API_KEY: (your VAPI API key)
-         - VAPI_PHONE_NUMBER: (your VAPI phone number)
+      3. Add the following secrets based on environment:
+         - AWS_ROLE_TO_ASSUME_DEV: ${GitHubActionsRole.Arn} (for dev environment)
+         - AWS_ROLE_TO_ASSUME_STAGE: (role ARN for staging)
+         - AWS_ROLE_TO_ASSUME_PROD: (role ARN for production)

@@ -70,6 +70,9 @@ if [ "$COMMAND" != "deploy-only" ]; then
 
     echo "✅ Container image pushed successfully!"
     echo "   Image URI: $DOCKER_IMAGE_URI"
+    
+    # Return to deploy directory
+    cd deploy
 fi
 
 # Handle different commands

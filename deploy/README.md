@@ -1,283 +1,273 @@
-# Alert Engine MCP Server Infrastructure
+# E-commerce MCP Server - CloudFormation Deployment
 
-This directory contains the AWS CDK infrastructure code for the Alert Engine MCP (Model Context Protocol) Server with support for multiple environments (dev/stage/prod).
+This directory contains pure CloudFormation-based deployment automation for the E-commerce MCP Server running on AWS ECS with Fargate. It provides a complete, production-ready infrastructure deployment without CDK dependencies.
 
-## Project Overview
+## 🏗️ Architecture Overview
 
-The Alert Engine MCP Server is deployed as a containerized service on AWS ECS Fargate, providing alert management and monitoring capabilities through the Model Context Protocol interface.
+The deployment creates a modern, scalable architecture:
 
-## Environment Configuration
+```
+Route53 → Application Load Balancer → ECS Fargate Tasks → S3
+```
 
-The infrastructure supports three environments with different configurations:
+### Components
 
-### Development Environment
-- **API**: `https://api.dev-alert-engine.totogicore.com`
-- Cost-optimized resources (512 CPU, 1GB RAM, 1 instance)
-- Single NAT gateway for cost savings
-- 7-day log retention
-- Auto-scaling disabled
+- **Main Stack**: Orchestrates all other stacks and manages dependencies
+- **Global Stack**: Region-specific resources like SSL certificates
+- **Network Stack**: VPC, subnets, ECS cluster, security groups
+- **Storage Stack**: S3 bucket with lifecycle policies and encryption
+- **Backend Stack**: ECS Fargate service with Application Load Balancer
+- **Domain Stack**: Route53 records and SSL certificates (optional)
 
-### Staging Environment  
-- **API**: `https://api.stage-alert-engine.totogicore.com`
-- Moderate resources (1024 CPU, 2GB RAM, 1 instance)
-- No NAT gateways (public subnets only)
-- 14-day log retention
-- Auto-scaling enabled (1-3 instances)
+## 📁 Directory Structure
 
-### Production Environment
-- **API**: `https://api.alert-engine.totogicore.com`
-- High-performance resources (1024 CPU, 2GB RAM, 2+ instances)
-- Multiple NAT gateways for high availability
-- 30-day log retention  
-- Auto-scaling enabled (2-10 instances)
+```
+deploy2/
+├── cloudformation-main-template.yaml     # Main orchestrator stack
+├── cloudformation-global-template.yaml   # Global/region-specific resources
+├── cloudformation-network-template.yaml  # VPC, ECS Cluster, Security Groups
+├── cloudformation-storage-template.yaml  # S3 Bucket for data storage
+├── cloudformation-backend-template.yaml  # ECS Fargate service + ALB
+├── cloudformation-domain-template.yaml   # Route53 records + SSL certs
+├── config/
+│   ├── dev.conf                          # Development environment config
+│   ├── stage.conf                        # Staging environment config
+│   └── prod.conf                         # Production environment config
+├── deploy.sh                             # Main deployment script
+├── cleanup-stacks.sh                     # Stack deletion script
+├── verify-deployment.sh                  # Deployment verification
+├── assume-role-to-profile.sh             # AWS role assumption helper
+└── README.md                             # This file
+```
 
-### SSL Certificates
-
-The CDK automatically creates SSL certificates for the API domains using AWS Certificate Manager, validated via DNS through the existing Route53 hosted zone.
-
-## Stack Architecture
-
-The infrastructure consists of five separate stacks:
-
-### 1. NetworkStack
-- VPC with public, private, and database subnets across 2 AZs
-- Environment-specific NAT gateway configuration
-- ECS Cluster for container workloads
-- CloudWatch log groups with environment-specific retention
-
-### 2. StorageStack
-- S3 bucket for alert engine data storage
-- Organized folder structure: `alerts/`, `logs/`, `configs/`, `data/`, `temp/`
-- Environment-specific versioning and lifecycle rules
-- Encryption at rest with S3-managed keys
-- CORS configuration for API access
-
-### 3. AuthStack
-- Cognito User Pool for MCP server authentication
-- User Pool Client for API access
-- Identity Pool for AWS credential access
-- IAM roles for authenticated and unauthenticated users
-
-### 4. BackendStack (MCP Server)
-- ECS Fargate service running the Python MCP server
-- Application Load Balancer with SSL termination
-- Container running on port 8000 (matches Dockerfile)
-- Auto-scaling based on CPU and memory utilization
-- Custom domain: `api.{environment}-alert-engine.totogicore.com`
-- Health check endpoint at `/health`
-- Comprehensive IAM permissions for S3 and Cognito
-
-### 5. DomainStack
-- Route53 DNS records for API endpoints
-- SSL certificate management
-- Domain routing configuration
-
-## Container Configuration
-
-The MCP server runs in a Docker container with the following configuration:
-
-- **Base Image**: Python 3.12 slim
-- **Port**: 8000 (HTTP)
-- **Health Check**: `/health` endpoint
-- **Environment Variables**:
-  - `API_HOST`: 0.0.0.0
-  - `API_PORT`: 8000
-  - `LOG_LEVEL`: INFO/DEBUG based on environment
-  - `ALERT_DATA_PATH`: /app/data
-  - `PYTHONPATH`: /app/src
-  - AWS and S3 configuration
-  - Cognito authentication settings
-
-## Deployment
+## 🚀 Quick Start
 
 ### Prerequisites
 
-1. AWS CLI configured with appropriate credentials
-2. Node.js and npm installed
-3. Docker installed (for container builds)
-4. Secrets Manager secrets created for each environment
+- AWS CLI v2 configured with appropriate credentials
+- bash shell
+- curl (for health checks)
+- jq (for JSON parsing in verification script)
 
-### Environment Setup
+### Basic Deployment
 
-1. Install dependencies:
+1. **Deploy to Development**:
    ```bash
-   cd /opt/mycode/trilogy/alert-engine/deploy
-   npm install
+   ./deploy.sh dev
    ```
 
-2. Set up environment variables:
+2. **Deploy to Staging**:
    ```bash
-   export CDK_ENV=dev  # or stage/prod
-   export PROJECT_NAME=alert-engine
-   export BASE_DOMAIN=totogicore.com
+   ./deploy.sh stage
    ```
 
-3. **Update Secrets Manager ARNs** in `config/environments.ts`:
-   ```typescript
-   // Replace XXXXXX with actual secret suffixes
-   secretsArn: arn:aws:secretsmanager:us-east-2:764119721991:secret:dsql/tmf-6vgxCr
+3. **Deploy to Production**:
+   ```bash
+   ./deploy.sh prod
    ```
 
-### Deploy Commands
+### With External AWS Role
+
+If you need to assume an external role for deployment:
 
 ```bash
-# First time setup - bootstrap CDK (if not already done)
-npm run bootstrap
-
-# Deploy to development
-npm run deploy:dev
-
-# Deploy to staging
-npm run deploy:stage
-
-# Deploy to production
-npm run deploy:prod
-
-# View changes before deployment
-npm run diff:dev
-npm run diff:stage
-npm run diff:prod
-
-# Destroy stacks (be careful!)
-npm run destroy:dev
-npm run destroy:stage
-npm run destroy:prod
-
-# Manual deployment with custom options
-./scripts/deploy.sh dev --hotswap
-./scripts/deploy.sh prod --require-approval never
+./deploy.sh dev external-aws
+./deploy.sh prod external-aws
 ```
 
-## Generated Infrastructure
+## ⚙️ Configuration
 
-After deployment, the following resources will be created:
+Each environment has its own configuration file in the `config/` directory. Key settings include:
 
-### Development Environment
-- **VPC**: Custom VPC with 1 NAT gateway
-- **ECS Service**: 512 CPU, 1GB RAM, 1 instance
-- **Storage**: S3 bucket without versioning
-- **Load Balancer**: Application Load Balancer with SSL
-- **Logs**: 7-day CloudWatch retention
+### Environment Variables
 
-### Staging Environment  
-- **VPC**: Public subnets only (no NAT gateways)
-- **ECS Service**: 1024 CPU, 2GB RAM, 1-3 instances
-- **Storage**: S3 bucket with versioning
-- **Load Balancer**: Application Load Balancer with SSL  
-- **Logs**: 14-day CloudWatch retention
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `PROJECT_NAME` | Name of the project | `alert-engine` |
+| `BASE_DOMAIN` | Your base domain | `totogicore.com` |
+| `SUBDOMAIN` | Environment subdomain | `dev-alert-engine` |
+| `AWS_REGION` | AWS region for deployment | `us-east-1` |
+| `DOCKER_IMAGE_URI` | ECR image URI | `account.dkr.ecr.region.amazonaws.com/repo:tag` |
 
-### Production Environment
-- **VPC**: Custom VPC with 2 NAT gateways for HA
-- **ECS Service**: 1024 CPU, 2GB RAM, 2-10 instances with auto-scaling
-- **Storage**: S3 bucket with versioning and lifecycle rules
-- **Load Balancer**: Application Load Balancer with SSL
-- **Logs**: 30-day CloudWatch retention
+### ECS Configuration
 
-## MCP Server Endpoints
+| Variable | Description | Dev | Stage | Prod |
+|----------|-------------|-----|-------|------|
+| `ECS_TASK_CPU` | CPU units (256-4096) | 512 | 1024 | 1024 |
+| `ECS_TASK_MEMORY` | Memory in MiB | 1024 | 2048 | 2048 |
+| `ECS_DESIRED_COUNT` | Number of tasks | 1 | 1 | 2 |
+| `ENABLE_AUTO_SCALING` | Enable auto-scaling | false | true | true |
 
-Once deployed, your MCP server will be available at:
+### Network Configuration
 
-- **Development**: `https://api.dev-alert-engine.totogicore.com`
-- **Staging**: `https://api.stage-alert-engine.totogicore.com`  
-- **Production**: `https://api.alert-engine.totogicore.com`
+| Variable | Description | Dev | Stage | Prod |
+|----------|-------------|-----|-------|------|
+| `VPC_NAT_GATEWAYS` | Number of NAT gateways | 1 | 0 | 2 |
+| `VPC_MAX_AZS` | Max availability zones | 2 | 2 | 2 |
 
-Key endpoints:
-- `/health` - Health check (used by load balancer)
-- MCP protocol endpoints as defined in your server implementation
+## 🛠️ Available Commands
 
-## Security Features
-
-### Authentication
-- Cognito User Pool for user management
-- JWT token-based authentication
-- IAM roles for fine-grained AWS access
-
-### Network Security
-- Private subnets for ECS tasks (where NAT gateways exist)
-- Security groups restricting access
-- Load balancer SSL termination
-
-### Data Security
-- S3 bucket encryption at rest
-- VPC endpoints for AWS service communication
-- Secrets Manager for sensitive configuration
-
-## Environment-Specific Features
-
-### Cost Optimization (Dev)
-- Single NAT gateway
-- Smaller compute resources (512 CPU/1GB RAM)
-- No auto-scaling
-- Shorter log retention (7 days)
-- S3 without versioning
-
-### High Availability (Prod)
-- Multiple NAT gateways across AZs
-- Auto-scaling enabled (2-10 instances)
-- Versioned S3 buckets with lifecycle rules
-- Longer log retention (30 days)
-- Circuit breaker deployment configuration
-
-### Balanced Staging
-- No NAT gateways (cost optimization)
-- Moderate auto-scaling (1-3 instances)
-- S3 with versioning
-- Moderate log retention (14 days)
-
-## Monitoring and Logging
-
-### CloudWatch Integration
-- Container logs automatically sent to CloudWatch
-- Environment-specific log groups
-- Configurable retention periods
-
-### Health Monitoring
-- ECS service health checks
-- Load balancer target group health checks
-- Auto-scaling metrics (CPU/Memory utilization)
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Container fails to start**: Check CloudWatch logs for the ECS service
-2. **Health check failures**: Ensure `/health` endpoint returns HTTP 200
-3. **Domain resolution issues**: Verify Route53 hosted zone configuration
-4. **Authentication errors**: Check Cognito User Pool configuration
-5. **S3 access denied**: Verify IAM role permissions for ECS tasks
-
-### Debug Commands
+### Main Deployment Script
 
 ```bash
-# View ECS service logs
-aws logs describe-log-groups --log-group-name-prefix "/aws/ecs/alert-engine"
+# Full deployment
+./deploy.sh <environment>
 
-# Check ECS service status  
-aws ecs describe-services --cluster alert-engine-cluster-{env} --services alert-engine-backend-{env}
+# Infrastructure only
+./deploy.sh <environment> infrastructure-only
 
-# View load balancer health
-aws elbv2 describe-target-health --target-group-arn {target-group-arn}
+# With external AWS role
+./deploy.sh <environment> external-aws
+
+# External role + infrastructure only
+./deploy.sh <environment> external-aws-infrastructure-only
 ```
 
-## Customization
+### Verification Script
 
-### Adding Secrets
-Update `stacks/backend-stack.ts` to add new secrets:
-```typescript
-secrets: {
-  DATABASE_PASSWORD: ecs.Secret.fromSecretsManager(appSecret, 'DATABASE_PASSWORD'),
-  API_KEY: ecs.Secret.fromSecretsManager(appSecret, 'API_KEY'),
-}
+```bash
+# Verify deployment health
+./verify-deployment.sh <environment>
 ```
 
-### Modifying Resources
-- CPU/Memory: Update `config/environments.ts` 
-- Auto-scaling: Modify min/max capacity in environment configs
-- S3 structure: Update folder prefixes in `stacks/storage-stack.ts`
+### Cleanup Script
 
-## Support
+```bash
+# Delete all stacks for environment (⚠️ DESTRUCTIVE)
+./cleanup-stacks.sh <environment>
+```
 
-For deployment issues or questions, refer to:
-- AWS ECS documentation for container troubleshooting
-- CDK documentation for infrastructure changes  
-- CloudWatch logs for application debugging
+## 📋 Deployment Process
+
+The deployment follows this sequence:
+
+1. **Validation**: Checks AWS CLI, configuration, and templates
+2. **Main Stack**: Orchestrates all other stacks in dependency order
+3. **Global Stack**: Creates region-specific resources like SSL certificates
+4. **Network Stack**: Creates VPC, subnets, ECS cluster, security groups
+5. **Storage Stack**: Creates S3 bucket with proper policies and lifecycle rules
+6. **Backend Stack**: Deploys ECS service with load balancer
+7. **Domain Stack**: Sets up Route53 records and SSL certificates (if enabled)
+8. **Verification**: Displays deployment information and service URLs
+
+## 🔧 Customization
+
+### Environment-Specific Settings
+
+Edit the configuration files in `config/` to customize:
+
+- Resource sizing (CPU, memory, instance counts)
+- Feature flags (authentication, domain setup, monitoring)
+- Cost optimization settings (NAT gateways, auto-scaling)
+
+### Template Modifications
+
+The CloudFormation templates are modular and can be modified independently:
+
+- **Main**: Adjust orchestration and dependencies
+- **Global**: Modify region-specific resources and SSL certificates
+- **Network**: Adjust VPC CIDR, subnet configuration
+- **Storage**: Modify S3 lifecycle rules, encryption settings
+- **Backend**: Change ECS configuration, health check settings
+- **Domain**: Update SSL certificate settings, Route53 configuration
+
+## 🔍 Monitoring and Troubleshooting
+
+### Health Checks
+
+Each deployment includes health endpoints:
+
+- **Load Balancer**: `http://<alb-dns>/health`
+- **Domain** (if configured): `https://api.<subdomain>.<domain>/health`
+
+### CloudWatch Logs
+
+Application logs are automatically sent to CloudWatch:
+- Log Group: `/aws/ecs/<project-name>-<environment>`
+- Retention: Configurable per environment (7-30 days)
+
+### Verification
+
+Use the verification script to check deployment health:
+
+```bash
+./verify-deployment.sh dev
+```
+
+This checks:
+- ✅ CloudFormation stack status
+- ✅ ECS service health
+- ✅ Load balancer target health
+- ✅ Application health endpoints
+
+## 🛡️ Security Features
+
+- **Network Security**: VPC with private/public subnets, security groups
+- **Data Encryption**: S3 server-side encryption, ECS task secrets
+- **Access Control**: IAM roles with least privilege principles
+- **SSL/TLS**: Optional SSL certificates for HTTPS endpoints
+- **Multi-Region**: Global template handles region-specific resources
+
+## 💰 Cost Optimization
+
+### By Environment
+
+- **Development**: Single AZ, smaller instances, minimal logging
+- **Staging**: No NAT gateways (public subnets only), moderate resources
+- **Production**: Full high-availability, optimized for performance
+
+### Cost Control Features
+
+- Configurable NAT gateway count (major cost factor)
+- ECS auto-scaling to match demand
+- S3 lifecycle rules for long-term storage costs
+- CloudWatch log retention policies
+
+## 🔄 Updates and Maintenance
+
+### Updating the Application
+
+1. Build and push new Docker image to ECR
+2. Update `DOCKER_IMAGE_URI` in environment config
+3. Run deployment: `./deploy.sh <environment>`
+
+The deployment uses blue-green deployment strategy with circuit breaker for safe updates.
+
+### Updating Infrastructure
+
+1. Modify the appropriate CloudFormation template
+2. Run deployment: `./deploy.sh <environment>`
+
+CloudFormation will detect changes and update only affected resources.
+
+## 🆘 Common Issues
+
+### Deployment Failures
+
+1. **Stack already exists errors**: Use update commands or check for naming conflicts
+2. **Certificate validation timeouts**: Ensure DNS is properly configured
+3. **ECS task failures**: Check CloudWatch logs for application errors
+
+### Permission Issues
+
+1. **Insufficient IAM permissions**: Ensure deployment role has necessary CloudFormation and service permissions
+2. **Cross-account access**: Use external role assumption scripts
+
+### Network Issues
+
+1. **Health check failures**: Verify security group rules allow traffic on port 8000
+2. **DNS resolution**: Check Route53 configuration and certificate validation
+
+## 📞 Support
+
+For issues or questions:
+
+1. Check CloudWatch logs: `/aws/ecs/<project-name>-<environment>`
+2. Verify stack status in CloudFormation console
+3. Run verification script: `./verify-deployment.sh <environment>`
+4. Check ECS service events in AWS console
+
+---
+
+**Note**: This deployment uses a main orchestrator stack that manages all component stacks. The architecture is region-agnostic and supports multi-region deployments with global resources managed separately.
+

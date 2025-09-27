@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Alert Engine GitHub Actions Integration Setup Script
-# This script helps you set up the complete GitHub Actions integration
+# E-commerce MCP Server GitHub Actions Integration Setup Script
+# This script helps you set up the complete GitHub Actions integration for the MCP server project
 
 set -e
 
@@ -24,53 +24,90 @@ print_header() {
     echo
 }
 
-print_header "Alert Engine GitHub Actions CDK Integration Setup"
+print_header "E-commerce MCP Server GitHub Actions Integration Setup"
 
 # Check if we're in the right directory
-if [ ! -f "cdk.json" ]; then
-    print_color $RED "Error: Please run this script from the deploy directory"
+if [ ! -f "github-oidc-setup.yml" ]; then
+    print_color $RED "Error: Please run this script from the git-workflow directory"
     exit 1
 fi
 
 # Get GitHub repository information
 print_color $YELLOW "Please provide your GitHub repository information:"
-read -p "GitHub username/organization [trilogy-group]: " GITHUB_ORG
-GITHUB_ORG=${GITHUB_ORG:-trilogy-group}
+read -p "GitHub username/organization [promodeagro]: " GITHUB_ORG
+GITHUB_ORG=${GITHUB_ORG:-promodeagro}
 
-read -p "Repository name [alert-engine]: " GITHUB_REPO
-GITHUB_REPO=${GITHUB_REPO:-alert-engine}
+read -p "Repository name [promodeagro-mcp]: " GITHUB_REPO
+GITHUB_REPO=${GITHUB_REPO:-promodeagro-mcp}
 
 read -p "Branch for deployment [dev]: " BRANCH_NAME
 BRANCH_NAME=${BRANCH_NAME:-dev}
 
-print_header "Step 1: Deploy OIDC CloudFormation Stack"
+print_header "Step 1: Check OIDC Provider and Deploy IAM Role"
 
-print_color $YELLOW "Deploying CloudFormation stack for GitHub OIDC integration..."
+# Check if OIDC provider already exists
+print_color $YELLOW "Checking if GitHub OIDC provider already exists..."
+OIDC_PROVIDER_ARN=$(aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?contains(Arn, 'token.actions.githubusercontent.com')].Arn" --output text)
 
-# Deploy the OIDC stack
-aws cloudformation deploy \
-    --template-file github-oidc-setup.yml \
-    --stack-name github-actions-oidc-alert-engine \
-    --parameter-overrides \
-        GitHubOrganization=$GITHUB_ORG \
-        GitHubRepository=$GITHUB_REPO \
-        BranchName=$BRANCH_NAME \
-    --capabilities CAPABILITY_NAMED_IAM \
-    --region ${AWS_REGION:-us-east-1}
+if [ -n "$OIDC_PROVIDER_ARN" ]; then
+    print_color $GREEN "✓ Found existing GitHub OIDC provider: $OIDC_PROVIDER_ARN"
+    print_color $YELLOW "Using existing OIDC provider and creating only the IAM role..."
+    
+    # Deploy only the IAM role using the role-only template
+    aws cloudformation deploy \
+        --template-file ./github-role-only.yml \
+        --stack-name github-actions-role-promodeagro-mcp-${BRANCH_NAME} \
+        --parameter-overrides \
+            GitHubOrganization=$GITHUB_ORG \
+            GitHubRepository=$GITHUB_REPO \
+            BranchName=$BRANCH_NAME \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --region us-east-1
 
-if [ $? -eq 0 ]; then
-    print_color $GREEN "✓ OIDC stack deployed successfully"
+    if [ $? -eq 0 ]; then
+        print_color $GREEN "✓ IAM role deployed successfully"
+    else
+        print_color $RED "✗ IAM role deployment failed"
+        exit 1
+    fi
+
+    # Get the role ARN from the role-only stack
+    ROLE_ARN=$(aws cloudformation describe-stacks \
+        --stack-name github-actions-role-promodeagro-mcp-${BRANCH_NAME} \
+        --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \
+        --output text \
+        --region us-east-1)
 else
-    print_color $RED "✗ OIDC stack deployment failed"
-    exit 1
-fi
+    print_color $YELLOW "OIDC provider not found. Deploying complete OIDC setup..."
+    
+    # Deploy the OIDC stack
+    aws cloudformation deploy \
+        --template-file ./github-oidc-setup.yml \
+        --stack-name github-actions-oidc-promodeagro-mcp \
+        --parameter-overrides \
+            GitHubOrganization=$GITHUB_ORG \
+            GitHubRepository=$GITHUB_REPO \
+            BranchName=$BRANCH_NAME \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --region us-east-1
 
-# Get the role ARN
-ROLE_ARN=$(aws cloudformation describe-stacks \
-    --stack-name github-actions-oidc-alert-engine \
-    --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \
-    --output text \
-    --region ${AWS_REGION:-us-east-1})
+    if [ $? -eq 0 ]; then
+        print_color $GREEN "✓ OIDC stack deployed successfully"
+    else
+        print_color $RED "✗ OIDC stack deployment failed"
+        print_color $YELLOW "This might be due to AWS CLI version or existing resources."
+        print_color $YELLOW "Try using the simple setup script instead:"
+        print_color $BLUE "./setup-github-integration-simple.sh"
+        exit 1
+    fi
+
+    # Get the role ARN from the OIDC stack
+    ROLE_ARN=$(aws cloudformation describe-stacks \
+        --stack-name github-actions-oidc-promodeagro-mcp \
+        --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \
+        --output text \
+        --region us-east-1)
+fi
 
 print_header "Step 2: Configure GitHub Secrets"
 
@@ -101,7 +138,7 @@ echo "│ Secret Name                    │ Value                              
 echo "├──────────────────────────────────────────────────────────────────────────────────────────┤"
 printf "│ %-30s │ %-57s │\n" "AWS_ROLE_TO_ASSUME${SECRET_SUFFIX}" "$ROLE_ARN"
 echo "├──────────────────────────────────────────────────────────────────────────────────────────┤"
-printf "│ %-30s │ %-57s │\n" "SECRETS_ARN${SECRET_SUFFIX}" "(your AWS Secrets Manager ARN for ${BRANCH_NAME})"
+printf "│ %-30s │ %-57s │\n" "AWS_REGION" "${AWS_REGION:-us-east-1}"
 echo "└──────────────────────────────────────────────────────────────────────────────────────────┘"
 echo
 
@@ -115,14 +152,15 @@ echo
 
 print_color $GREEN "✓ GitHub Actions integration setup complete!"
 
-print_header "Alert Engine Specific Configuration" 
+print_header "E-commerce MCP Server Specific Configuration" 
 
-print_color $BLUE "Your alert-engine project is now configured for:"
-echo "• MCP Server deployment"
+print_color $BLUE "Your promodeagro-mcp project is now configured for:"
+echo "• MCP server deployment to AWS infrastructure"
 echo "• Multi-environment support (dev/stage/prod)"  
-echo "• Automatic CDK bootstrap"
+echo "• Automatic CloudFormation stack management"
 echo "• Health checks for MCP server endpoints"
-echo "• Alert engine specific secrets management"
+echo "• SSL/TLS certificate management"
+echo "• Container orchestration and scaling"
 echo
 
 print_header "Additional Recommendations"
@@ -133,14 +171,15 @@ echo "• Required status checks before merging"
 echo "• Deployment approvals for production"
 echo "• Slack/Discord notifications for deployment status"
 echo "• Cost monitoring alerts"
-echo "• Set up AWS Secrets Manager for sensitive data"
+echo "• Performance monitoring for website"
 echo
 
 print_color $BLUE "For production deployments, also set up:"
 echo "• A separate 'main' or 'production' branch workflow"
 echo "• Manual approval steps for production deployments"
-echo "• Blue/green deployment strategy"
+echo "• Blue/green deployment with container orchestration"
 echo "• Enhanced monitoring and alerting"
+echo "• Performance optimization and scaling"
 echo
 
-print_color $GREEN "Alert Engine deployment ready! 🚀"
+print_color $GREEN "E-commerce MCP Server deployment ready! 🚀"

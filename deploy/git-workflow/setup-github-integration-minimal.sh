@@ -1,28 +1,28 @@
 #!/bin/bash
 
-# Alert Engine GitHub Actions CDK Integration Setup (Minimal Permissions Version)
+# Alert Engine UI GitHub Actions Integration Setup (Minimal Permissions Version)
 # This version works with limited IAM permissions
 
 set -e
 
-echo "=== Alert Engine GitHub Actions CDK Integration Setup (Minimal) ==="
+echo "=== Alert Engine UI GitHub Actions Integration Setup (Minimal) ==="
 echo
 
 # Configuration
 DEFAULT_REGION="us-east-1"
 DEFAULT_ACCOUNT_ID="764119721991"
-DEFAULT_GITHUB_ORG="yourgithuborg"
-DEFAULT_REPO="alert-engine"
+DEFAULT_GITHUB_ORG="trilogy-group"
+DEFAULT_REPO="alert-engine-ui"
 DEFAULT_BRANCH="dev"
 
 # Check if we're in the right directory
-if [[ ! -f "cdk.json" ]]; then
-    echo "❌ Error: cdk.json not found. Please run this script from the deploy directory."
+if [[ ! -f "cloudformation-template.yaml" ]]; then
+    echo "❌ Error: cloudformation-template.yaml not found. Please run this script from the deploy directory."
     exit 1
 fi
 
 echo "📋 This script will provide you with the CloudFormation templates and instructions"
-echo "   to manually set up GitHub Actions integration for the Alert Engine project."
+echo "   to manually set up GitHub Actions integration for the Alert Engine UI project."
 echo
 
 # Get user input
@@ -48,7 +48,7 @@ echo
 # Create CloudFormation template for GitHub role (assumes OIDC provider exists)
 cat > "github-role-minimal.yml" << EOF
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'GitHub Actions Role for Alert Engine (assumes OIDC provider exists)'
+Description: 'GitHub Actions Role for Alert Engine UI (assumes OIDC provider exists)'
 
 Parameters:
   GitHubOrganization:
@@ -90,8 +90,15 @@ Resources:
                 'token.actions.githubusercontent.com:sub': 
                   - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:ref:refs/heads/\${BranchName}'
                   - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:ref:refs/heads/main'
+                  - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:ref:refs/heads/develop'
+                  - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:ref:refs/heads/release/*'
+                  - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:pull/*'
+                  - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:environment:production'
+                  - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:environment:staging'
+                  - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:environment:development'
+                  - !Sub 'repo:\${GitHubOrganization}/\${GitHubRepository}:environment:cleanup-*'
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
+        - arn:aws:iam::aws:policy/PowerUserAccess
       Tags:
         - Key: Purpose
           Value: GitHubActions
@@ -120,8 +127,8 @@ cat > "MANUAL_SETUP_INSTRUCTIONS.md" << EOF
 ### Development Environment
 \`\`\`bash
 aws cloudformation deploy \\
-  --template-file github-role-minimal.yml \\
-  --stack-name github-actions-role-alert-engine-dev \\
+  --template-file ./git-workflow/github-role-minimal.yml \\
+  --stack-name github-actions-role-alert-engine-ui-dev \\
   --parameter-overrides \\
     GitHubOrganization=$GITHUB_ORG \\
     GitHubRepository=$REPO_NAME \\
@@ -134,8 +141,8 @@ aws cloudformation deploy \\
 ### Staging Environment (Optional)
 \`\`\`bash
 aws cloudformation deploy \\
-  --template-file github-role-minimal.yml \\
-  --stack-name github-actions-role-alert-engine-stage \\
+  --template-file ./git-workflow/github-role-minimal.yml \\
+  --stack-name github-actions-role-alert-engine-ui-stage \\
   --parameter-overrides \\
     GitHubOrganization=$GITHUB_ORG \\
     GitHubRepository=$REPO_NAME \\
@@ -148,8 +155,8 @@ aws cloudformation deploy \\
 ### Production Environment (Optional)
 \`\`\`bash
 aws cloudformation deploy \\
-  --template-file github-role-minimal.yml \\
-  --stack-name github-actions-role-alert-engine-prod \\
+  --template-file ./git-workflow/github-role-minimal.yml \\
+  --stack-name github-actions-role-alert-engine-ui-prod \\
   --parameter-overrides \\
     GitHubOrganization=$GITHUB_ORG \\
     GitHubRepository=$REPO_NAME \\
@@ -164,21 +171,21 @@ aws cloudformation deploy \\
 \`\`\`bash
 # Development
 DEV_ROLE_ARN=\$(aws cloudformation describe-stacks \\
-  --stack-name github-actions-role-alert-engine-dev \\
+  --stack-name github-actions-role-alert-engine-ui-dev \\
   --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \\
   --output text \\
   --region $AWS_REGION)
 
 # Staging  
 STAGE_ROLE_ARN=\$(aws cloudformation describe-stacks \\
-  --stack-name github-actions-role-alert-engine-stage \\
+  --stack-name github-actions-role-alert-engine-ui-stage \\
   --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \\
   --output text \\
   --region $AWS_REGION)
 
 # Production
 PROD_ROLE_ARN=\$(aws cloudformation describe-stacks \\
-  --stack-name github-actions-role-alert-engine-prod \\
+  --stack-name github-actions-role-alert-engine-ui-prod \\
   --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \\
   --output text \\
   --region $AWS_REGION)
@@ -188,24 +195,14 @@ echo "Staging Role ARN: \$STAGE_ROLE_ARN"
 echo "Production Role ARN: \$PROD_ROLE_ARN"
 \`\`\`
 
-## Step 3: Create AWS Secrets Manager Secrets
+## Step 3: Configure Environment Variables (Optional)
+
+The UI deployment primarily uses CloudFormation and doesn't require secrets management for database connections. However, if you need environment-specific configuration:
 
 \`\`\`bash
-# Development secrets
-aws secretsmanager create-secret \\
-  --name "alert-engine-dev-secrets" \\
-  --description "Alert Engine Development Environment Secrets" \\
-  --secret-string '{"DATABASE_URL":"your-dev-db-url","API_KEY":"your-dev-api-key"}' \\
-  --region $AWS_REGION
-
-# Get secrets ARN
-DEV_SECRETS_ARN=\$(aws secretsmanager describe-secret \\
-  --secret-id "alert-engine-dev-secrets" \\
-  --query "ARN" \\
-  --output text \\
-  --region $AWS_REGION)
-
-echo "Development Secrets ARN: \$DEV_SECRETS_ARN"
+# You can set up environment-specific configuration in your workflow files
+# No additional secrets are required for basic UI deployment
+echo "UI deployment configured for static website hosting"
 \`\`\`
 
 ## Step 4: Add GitHub Secrets
@@ -217,11 +214,8 @@ Add these secrets:
 | Secret Name | Value |
 |-------------|-------|
 | AWS_ROLE_TO_ASSUME_DEV | [DEV_ROLE_ARN from Step 2] |
-| SECRETS_ARN_DEV | [DEV_SECRETS_ARN from Step 3] |
 | AWS_ROLE_TO_ASSUME_STAGE | [STAGE_ROLE_ARN from Step 2] |
-| SECRETS_ARN_STAGE | [STAGE_SECRETS_ARN from Step 3] |
 | AWS_ROLE_TO_ASSUME_PROD | [PROD_ROLE_ARN from Step 2] |
-| SECRETS_ARN_PROD | [PROD_SECRETS_ARN from Step 3] |
 
 ## Step 5: Test GitHub Actions
 
@@ -262,8 +256,8 @@ if [[ $DEPLOY_NOW =~ ^[Yy]$ ]]; then
     echo
     echo "🚀 Deploying development role..."
     aws cloudformation deploy \
-      --template-file github-role-minimal.yml \
-      --stack-name github-actions-role-alert-engine-dev \
+      --template-file ./git-workflow/github-role-minimal.yml \
+      --stack-name github-actions-role-alert-engine-ui-dev \
       --parameter-overrides \
         GitHubOrganization=$GITHUB_ORG \
         GitHubRepository=$REPO_NAME \
@@ -276,7 +270,7 @@ if [[ $DEPLOY_NOW =~ ^[Yy]$ ]]; then
         echo "✅ Development role deployed successfully!"
         
         DEV_ROLE_ARN=$(aws cloudformation describe-stacks \
-          --stack-name github-actions-role-alert-engine-dev \
+          --stack-name github-actions-role-alert-engine-ui-dev \
           --query "Stacks[0].Outputs[?OutputKey=='GitHubActionsRoleArn'].OutputValue" \
           --output text \
           --region $AWS_REGION)
