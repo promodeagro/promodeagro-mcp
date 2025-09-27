@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
+import json
 
 from loguru import logger
 
@@ -26,13 +27,23 @@ class EcommerceService:
         self.dynamodb = boto3.resource('dynamodb', region_name=self.region_name)
         
         # Initialize table references
-        # Note: Ensure DynamoDB tables are renamed to match these names, or use environment variables
-        # to map to existing table names (e.g., PRODUCTS_TABLE_NAME='AuroraSparkTheme-Products')
-        products_table_name = os.getenv('PRODUCTS_TABLE_NAME', 'EcommerceApp-Products')
-        inventory_table_name = os.getenv('INVENTORY_TABLE_NAME', 'EcommerceApp-Inventory')
+        # Default to AuroraSparkTheme tables (the actual tables that exist)
+        # Can be overridden with environment variables if needed
+        products_table_name = os.getenv('PRODUCTS_TABLE_NAME', 'AuroraSparkTheme-Products')
+        inventory_table_name = os.getenv('INVENTORY_TABLE_NAME', 'AuroraSparkTheme-Inventory')
         
         self.products_table = self.dynamodb.Table(products_table_name)
         self.inventory_table = self.dynamodb.Table(inventory_table_name)
+
+    def _convert_decimal(self, obj):
+        """Convert DynamoDB Decimal objects to float for JSON serialization."""
+        if isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, dict):
+            return {k: self._convert_decimal(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_decimal(v) for v in obj]
+        return obj
 
     async def browse_products(self, request: ProductBrowseRequest) -> ProductBrowseResult:
         """Browse and search products based on request parameters."""
@@ -53,6 +64,9 @@ class EcommerceService:
                 response = self.products_table.scan()
             
             raw_products = response.get('Items', [])
+            
+            # Convert Decimal objects to float for JSON serialization
+            raw_products = self._convert_decimal(raw_products)
             
             # Filter and process products
             filtered_products = []
@@ -140,6 +154,9 @@ class EcommerceService:
             )
             
             raw_products = response.get('Items', [])
+            
+            # Convert Decimal objects to float for JSON serialization
+            raw_products = self._convert_decimal(raw_products)
             
             # Count products by category
             category_counts = {}

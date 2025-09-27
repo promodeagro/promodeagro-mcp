@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import os
 import boto3
 from pathlib import Path
 from decimal import Decimal
@@ -24,9 +25,12 @@ async def verify_database():
     # Initialize DynamoDB client
     dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
     
-    # Table names
-    products_table = dynamodb.Table('EcommerceApp-Products')
-    inventory_table = dynamodb.Table('EcommerceApp-Inventory')
+    # Table names - use environment variables if available
+    products_table_name = os.getenv('PRODUCTS_TABLE_NAME', 'EcommerceApp-Products')
+    inventory_table_name = os.getenv('INVENTORY_TABLE_NAME', 'EcommerceApp-Inventory')
+    
+    products_table = dynamodb.Table(products_table_name)
+    inventory_table = dynamodb.Table(inventory_table_name)
     
     print('\n📊 1. RAW DATABASE - Products Table Sample:')
     print('-' * 50)

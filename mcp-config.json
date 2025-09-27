@@ -12,7 +12,9 @@
       "env": {
         "PYTHONPATH": "/opt/mycode/promode/promodeagro-mcp",
         "LOG_LEVEL": "INFO",
-        "AWS_REGION": "ap-south-1"
+        "AWS_REGION": "ap-south-1",
+        "PRODUCTS_TABLE_NAME": "AuroraSparkTheme-Products",
+        "INVENTORY_TABLE_NAME": "AuroraSparkTheme-Inventory"
       },
       "cwd": "/opt/mycode/promode/promodeagro-mcp"
     }

@@ -1,0 +1,354 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Main E-commerce MCP Server Infrastructure - Orchestrates all component stacks'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Name of the project (e.g., ecommerce-mcp)'
+    Default: 'ecommerce-mcp'
+  
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, stage, prod)'
+    Default: 'dev'
+    AllowedValues:
+      - dev
+      - stage
+      - prod
+  
+  BaseDomain:
+    Type: String
+    Description: 'Base domain name (e.g., totogicore.com)'
+    Default: 'totogicore.com'
+  
+  Subdomain:
+    Type: String
+    Description: 'Subdomain for the environment'
+    Default: 'dev-ecommerce-mcp'
+  
+  HostedZoneId:
+    Type: String
+    Description: 'Route53 Hosted Zone ID for the base domain'
+    Default: 'Z084501638STQ2EKKSIA'
+  
+  # Container Configuration
+  DockerImageUri:
+    Type: String
+    Description: 'Docker image URI for the MCP server'
+    Default: '851725323791.dkr.ecr.us-east-1.amazonaws.com/ecommerce-mcp-server-dev:latest'
+  
+  TaskCpu:
+    Type: Number
+    Description: 'CPU units for the ECS task (256, 512, 1024, 2048, 4096)'
+    Default: 512
+    AllowedValues:
+      - 256
+      - 512
+      - 1024
+      - 2048
+      - 4096
+  
+  TaskMemory:
+    Type: Number
+    Description: 'Memory (MiB) for the ECS task'
+    Default: 1024
+  
+  DesiredCount:
+    Type: Number
+    Description: 'Desired number of ECS tasks'
+    Default: 1
+    MinValue: 1
+    MaxValue: 10
+  
+  MinCapacity:
+    Type: Number
+    Description: 'Minimum number of ECS tasks for auto-scaling'
+    Default: 1
+    MinValue: 1
+  
+  MaxCapacity:
+    Type: Number
+    Description: 'Maximum number of ECS tasks for auto-scaling'
+    Default: 3
+    MinValue: 1
+  
+  # Network Configuration
+  MaxAzs:
+    Type: Number
+    Description: 'Maximum number of Availability Zones'
+    Default: 2
+    MinValue: 1
+    MaxValue: 3
+  
+  NatGateways:
+    Type: Number
+    Description: 'Number of NAT Gateways (0 for staging cost optimization)'
+    Default: 1
+    MinValue: 0
+    MaxValue: 3
+  
+  LogRetentionDays:
+    Type: Number
+    Description: 'CloudWatch log retention in days'
+    Default: 7
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+  
+  # S3 Configuration
+  BucketName:
+    Type: String
+    Description: 'S3 bucket name for data storage (must be globally unique)'
+    Default: ''
+  
+  
+  # Application Configuration
+  SecretsArn:
+    Type: String
+    Description: 'ARN of AWS Secrets Manager secret'
+    Default: 'arn:aws:secretsmanager:us-east-2:764119721991:secret:dsql/tmf-6vgxCr'
+  
+  LogLevel:
+    Type: String
+    Description: 'Application log level'
+    Default: 'INFO'
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+  
+  EnableAutoScaling:
+    Type: String
+    Description: 'Enable auto-scaling for the ECS service'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  CreateSSLCertificate:
+    Type: String
+    Description: 'Create SSL certificate for the domain'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  EnableDomainSetup:
+    Type: String
+    Description: 'Enable domain setup with Route53 records'
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  S3TemplatesBucket:
+    Type: String
+    Description: 'S3 bucket containing CloudFormation templates'
+    Default: ''
+
+Conditions:
+  ShouldCreateSSLCertificate: !Equals [!Ref CreateSSLCertificate, 'true']
+  ShouldSetupDomain: !Equals [!Ref EnableDomainSetup, 'true']
+
+Resources:
+  # Global Stack (region-specific resources)
+  GlobalStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${S3TemplatesBucket}/cloudformation-global-template.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        BaseDomain: !Ref BaseDomain
+        Subdomain: !Ref Subdomain
+        HostedZoneId: !Ref HostedZoneId
+        CreateSSLCertificate: !Ref CreateSSLCertificate
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Network Stack
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: GlobalStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${S3TemplatesBucket}/cloudformation-network-template.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        MaxAzs: !Ref MaxAzs
+        NatGateways: !Ref NatGateways
+        LogRetentionDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Storage Stack
+  StorageStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: GlobalStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${S3TemplatesBucket}/cloudformation-storage-template.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        BucketName: !Ref BucketName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Backend Stack
+  BackendStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+      - NetworkStack
+      - StorageStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${S3TemplatesBucket}/cloudformation-backend-template.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        BaseDomain: !Ref BaseDomain
+        Subdomain: !Ref Subdomain
+        DockerImageUri: !Ref DockerImageUri
+        TaskCpu: !Ref TaskCpu
+        TaskMemory: !Ref TaskMemory
+        DesiredCount: !Ref DesiredCount
+        MinCapacity: !Ref MinCapacity
+        MaxCapacity: !Ref MaxCapacity
+        NetworkStackName: !GetAtt NetworkStack.Outputs.StackName
+        StorageStackName: !GetAtt StorageStack.Outputs.StackName
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PublicSubnet1Id: !GetAtt NetworkStack.Outputs.PublicSubnet1Id
+        PublicSubnet2Id: !GetAtt NetworkStack.Outputs.PublicSubnet2Id
+        ALBSecurityGroupId: !GetAtt NetworkStack.Outputs.ALBSecurityGroupId
+        ECSSecurityGroupId: !GetAtt NetworkStack.Outputs.ECSSecurityGroupId
+        ClusterName: !GetAtt NetworkStack.Outputs.ClusterName
+        NatGateways: !Ref NatGateways
+        SecretsArn: !Ref SecretsArn
+        LogLevel: !Ref LogLevel
+        EnableAutoScaling: !Ref EnableAutoScaling
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+          Key: Environment
+          Value: !Ref Environment
+
+  # Domain Stack (conditional)
+  DomainStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: ShouldSetupDomain
+    DependsOn: BackendStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${S3TemplatesBucket}/cloudformation-domain-template.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        BaseDomain: !Ref BaseDomain
+        Subdomain: !Ref Subdomain
+        HostedZoneId: !Ref HostedZoneId
+        BackendStackName: !GetAtt BackendStack.Outputs.StackName
+        CreateSSLCertificate: !Ref CreateSSLCertificate
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # S3 Bucket for storing CloudFormation templates
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-templates-${Environment}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-templates-${Environment}'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  # Global outputs
+  GlobalStackName:
+    Description: 'Global stack name'
+    Value: !GetAtt GlobalStack.Outputs.StackName
+    Export:
+      Name: !Sub '${ProjectName}-global-stack-name-${Environment}'
+
+  # Network outputs
+  NetworkStackName:
+    Description: 'Network stack name'
+    Value: !GetAtt NetworkStack.Outputs.StackName
+    Export:
+      Name: !Sub '${ProjectName}-network-stack-name-${Environment}'
+
+  VpcId:
+    Description: 'VPC ID'
+    Value: !GetAtt NetworkStack.Outputs.VpcId
+
+  ClusterName:
+    Description: 'ECS Cluster Name'
+    Value: !GetAtt NetworkStack.Outputs.ClusterName
+
+  # Storage outputs
+  StorageStackName:
+    Description: 'Storage stack name'
+    Value: !GetAtt StorageStack.Outputs.StackName
+    Export:
+      Name: !Sub '${ProjectName}-storage-stack-name-${Environment}'
+
+  BucketName:
+    Description: 'S3 bucket name'
+    Value: !GetAtt StorageStack.Outputs.BucketName
+
+  # Backend outputs
+  BackendStackName:
+    Description: 'Backend stack name'
+    Value: !GetAtt BackendStack.Outputs.StackName
+    Export:
+      Name: !Sub '${ProjectName}-backend-stack-name-${Environment}'
+
+  BackendUrl:
+    Description: 'Backend service URL'
+    Value: !GetAtt BackendStack.Outputs.BackendUrl
+
+  LoadBalancerDns:
+    Description: 'Load balancer DNS name'
+    Value: !GetAtt BackendStack.Outputs.LoadBalancerDns
+
+  # Domain outputs (conditional)
+  DomainStackName:
+    Condition: ShouldSetupDomain
+    Description: 'Domain stack name'
+    Value: !GetAtt DomainStack.Outputs.StackName
+    Export:
+      Name: !Sub '${ProjectName}-domain-stack-name-${Environment}'
+
+  ApiUrl:
+    Condition: ShouldSetupDomain
+    Description: 'API URL'
+    Value: !GetAtt DomainStack.Outputs.ApiUrl
+    Export:
+      Name: !Sub '${ProjectName}-api-url-${Environment}'
+
