@@ -23,7 +23,7 @@ This directory contains comprehensive shell scripts for testing and documenting 
 ```
 
 **Output**:
-- Complete list of 2 MCP tools
+- Complete list of 4 MCP tools
 - Tool descriptions and endpoints
 - Availability status for each tool
 - Quick API reference
@@ -169,6 +169,10 @@ This directory contains comprehensive shell scripts for testing and documenting 
 - **`browse-products`** - Browse and search products in the e-commerce catalog with filtering and search capabilities including category filtering, keyword search, price ranges, and stock availability filters
 - **`get-category-counts`** - Get product counts by category for e-commerce catalog to understand inventory distribution and product availability across different categories
 
+### Delivery Management Tools
+- **`deliver-order`** - Process order delivery with status updates, payment collection, customer verification, and delivery confirmation including support for successful deliveries, failed attempts, and returns to warehouse
+- **`get-delivery-status`** - Get current delivery status and detailed information for any order including delivery timestamps, payment records, and delivery proof details
+
 #### E-commerce Examples
 ```bash
 # Browse products
@@ -177,8 +181,14 @@ This directory contains comprehensive shell scripts for testing and documenting 
 # Get category counts
 ./get_tool_details.sh get-category-counts
 
+# Deliver order
+./get_tool_details.sh deliver-order
+
+# Get delivery status
+./get_tool_details.sh get-delivery-status
+
 # Test e-commerce tools
-./test_tool_availability.sh # Tests all 2 tools
+./test_tool_availability.sh # Tests all 4 tools
 ```
 
 ---

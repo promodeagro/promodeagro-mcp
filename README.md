@@ -103,6 +103,63 @@ curl -X POST http://localhost:8000/tools/get-category-counts \
   -d '{}'
 ```
 
+### 3. 🚚 **deliver-order**
+*Process order delivery with status updates, payment collection, and delivery confirmation*
+
+**Parameters:**
+- `order_id` (string, required): Unique order identifier
+- `delivery_status` (string, required): Delivery outcome ('successful', 'failed', or 'returned')
+- `customer_verified` (boolean, required): Whether customer identity was verified
+- `payment_collected` (boolean, optional): Whether payment was collected (required for COD orders)
+- `signature_obtained` (boolean, optional): Whether customer signature was obtained
+- `photo_taken` (boolean, optional): Whether delivery photo was taken
+- `failure_reason` (string, optional): Reason for failed/returned delivery (required for failed/returned)
+- `customer_feedback` (string, optional): Customer feedback
+- `delivery_notes` (string, optional): Additional delivery notes
+- `delivered_by` (string, optional): Employee ID of delivery person
+
+**Example Usage:**
+```bash
+# Successful delivery with payment collection
+curl -X POST http://localhost:8000/tools/deliver-order \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": "ORD-20231201-ABC123",
+    "delivery_status": "successful",
+    "customer_verified": true,
+    "payment_collected": true,
+    "signature_obtained": true,
+    "photo_taken": true,
+    "customer_feedback": "Great service!",
+    "delivered_by": "emp-del-001"
+  }'
+
+# Failed delivery
+curl -X POST http://localhost:8000/tools/deliver-order \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": "ORD-20231201-XYZ789",
+    "delivery_status": "failed",
+    "customer_verified": false,
+    "failure_reason": "Customer not available at address"
+  }'
+```
+
+### 4. 📋 **get-delivery-status**
+*Get current delivery status and details for an order*
+
+**Parameters:**
+- `order_id` (string, required): Unique order identifier
+
+**Example Usage:**
+```bash
+curl -X POST http://localhost:8000/tools/get-delivery-status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": "ORD-20231201-ABC123"
+  }'
+```
+
 ## 🏗️ Architecture
 
 ### System Design
@@ -122,6 +179,9 @@ curl -X POST http://localhost:8000/tools/get-category-counts \
                     │  │ MCP Tools Layer │  │
                     │  │ • browse-products│  │  
                     │  │ • get-categories │  │
+                    │  │ • deliver-order  │  │
+                    │  │ • get-delivery-  │  │
+                    │  │   status         │  │
                     │  └─────────────────┘  │
                     │  ┌─────────────────┐  │
                     │  │ Service Layer   │  │

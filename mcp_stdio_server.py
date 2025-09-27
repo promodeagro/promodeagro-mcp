@@ -8,6 +8,7 @@ import asyncio
 import json
 import sys
 import logging
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
@@ -17,6 +18,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import our e-commerce services and models
 from src.services.ecommerce_service import EcommerceService
 from src.models.ecommerce_models import ProductBrowseRequest, CategoryCountsRequest
+from src.services.deliver_order_service import DeliverOrderService
+from src.models.deliver_order_model import (
+    DeliverOrderRequest, DeliveryStatusRequest, DeliveryStatus, DeliveryProof
+)
 
 # Configure logging to stderr to avoid interfering with stdio communication
 logging.basicConfig(
@@ -39,6 +44,7 @@ class MCPStdioServer:
         }
         self.tools = self._get_tools()
         self.service = EcommerceService()
+        self.delivery_service = DeliverOrderService()
         
     def _get_tools(self) -> Dict[str, Any]:
         """Get available tools definitions"""
@@ -87,6 +93,73 @@ class MCPStdioServer:
                     "properties": {},
                     "required": []
                 }
+            },
+            "deliver-order": {
+                "name": "deliver-order",
+                "description": "Deliver a single order with status update, payment collection, and delivery confirmation",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "order_id": {
+                            "type": "string",
+                            "description": "Unique order identifier"
+                        },
+                        "delivery_status": {
+                            "type": "string",
+                            "enum": ["successful", "failed", "returned"],
+                            "description": "Delivery outcome status"
+                        },
+                        "customer_verified": {
+                            "type": "boolean",
+                            "description": "Whether customer identity was verified"
+                        },
+                        "payment_collected": {
+                            "type": "boolean",
+                            "description": "Whether payment was collected (required for COD orders)"
+                        },
+                        "signature_obtained": {
+                            "type": "boolean",
+                            "description": "Whether customer signature was obtained",
+                            "default": False
+                        },
+                        "photo_taken": {
+                            "type": "boolean",
+                            "description": "Whether delivery photo was taken",
+                            "default": False
+                        },
+                        "failure_reason": {
+                            "type": "string",
+                            "description": "Reason for failed/returned delivery (required for failed/returned status)"
+                        },
+                        "customer_feedback": {
+                            "type": "string",
+                            "description": "Optional customer feedback"
+                        },
+                        "delivery_notes": {
+                            "type": "string",
+                            "description": "Additional delivery notes"
+                        },
+                        "delivered_by": {
+                            "type": "string",
+                            "description": "Employee ID of the delivery person"
+                        }
+                    },
+                    "required": ["order_id", "delivery_status", "customer_verified"]
+                }
+            },
+            "get-delivery-status": {
+                "name": "get-delivery-status",
+                "description": "Get current delivery status and details for an order",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "order_id": {
+                            "type": "string",
+                            "description": "Unique order identifier"
+                        }
+                    },
+                    "required": ["order_id"]
+                }
             }
         }
 
@@ -124,6 +197,10 @@ class MCPStdioServer:
             return await self._handle_browse_products(arguments)
         elif tool_name == "get-category-counts":
             return await self._handle_get_category_counts(arguments)
+        elif tool_name == "deliver-order":
+            return await self._handle_deliver_order(arguments)
+        elif tool_name == "get-delivery-status":
+            return await self._handle_get_delivery_status(arguments)
         else:
             raise Exception(f"Unknown tool: {tool_name}")
 
@@ -246,6 +323,130 @@ class MCPStdioServer:
                     {
                         "type": "text",
                         "text": f"Error getting category counts: {str(e)}"
+                    }
+                ],
+                "isError": True
+            }
+
+    async def _handle_deliver_order(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle deliver-order tool call"""
+        try:
+            # Extract arguments
+            order_id = arguments.get("order_id")
+            delivery_status = arguments.get("delivery_status")
+            customer_verified = arguments.get("customer_verified")
+            payment_collected = arguments.get("payment_collected")
+            signature_obtained = arguments.get("signature_obtained", False)
+            photo_taken = arguments.get("photo_taken", False)
+            failure_reason = arguments.get("failure_reason")
+            customer_feedback = arguments.get("customer_feedback")
+            delivery_notes = arguments.get("delivery_notes")
+            delivered_by = arguments.get("delivered_by")
+            
+            # Create delivery proof if needed
+            delivery_proof = None
+            if signature_obtained or photo_taken:
+                delivery_proof = DeliveryProof(
+                    signature_obtained=signature_obtained,
+                    photo_taken=photo_taken,
+                    timestamp=datetime.utcnow().isoformat()
+                )
+            
+            # Create request object
+            request = DeliverOrderRequest(
+                order_id=order_id,
+                delivery_status=DeliveryStatus(delivery_status),
+                customer_verified=customer_verified,
+                payment_collected=payment_collected,
+                delivery_proof=delivery_proof,
+                failure_reason=failure_reason,
+                customer_feedback=customer_feedback,
+                delivery_notes=delivery_notes
+            )
+            
+            # Call service
+            result = await self.delivery_service.deliver_order(request, delivered_by)
+            
+            # Convert to dictionary for JSON serialization
+            response_data = {
+                "success": result.success,
+                "message": result.message,
+                "timestamp": result.timestamp
+            }
+            
+            if result.delivery_result:
+                response_data["delivery_result"] = {
+                    "order_id": result.delivery_result.order_id,
+                    "status": result.delivery_result.status,
+                    "message": result.delivery_result.message,
+                    "timestamp": result.delivery_result.timestamp,
+                    "payment_collected": result.delivery_result.payment_collected,
+                    "delivery_proof": result.delivery_result.delivery_proof,
+                    "customer_feedback": result.delivery_result.customer_feedback
+                }
+            
+            if result.order_details:
+                response_data["order_details"] = result.order_details
+            
+            if result.error_details:
+                response_data["error_details"] = result.error_details
+            
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(response_data, indent=2)
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in deliver_order: {str(e)}")
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Error delivering order: {str(e)}"
+                    }
+                ],
+                "isError": True
+            }
+
+    async def _handle_get_delivery_status(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle get-delivery-status tool call"""
+        try:
+            # Create request object
+            request = DeliveryStatusRequest(order_id=arguments.get("order_id"))
+            
+            # Call service
+            result = await self.delivery_service.get_delivery_status(request)
+            
+            # Convert to dictionary for JSON serialization
+            response_data = {
+                "success": True,
+                "order_id": result.order_id,
+                "current_status": result.current_status,
+                "delivery_details": result.delivery_details,
+                "order_info": result.order_info,
+                "timestamp": result.timestamp
+            }
+            
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(response_data, indent=2)
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in get_delivery_status: {str(e)}")
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Error getting delivery status: {str(e)}"
                     }
                 ],
                 "isError": True

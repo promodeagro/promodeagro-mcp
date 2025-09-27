@@ -38,6 +38,7 @@ from .consts import ECOMMERCE_MCP_SERVER_APPLICATION_NAME
 from .tools.ecommerce_tools import (
     browse_products_tool, get_category_counts_tool
 )
+from .tools.deliver_order_tool import deliver_order_tools
 
 
 def create_server() -> FastMCP:
@@ -51,6 +52,7 @@ def create_server() -> FastMCP:
     
     browse_products_tool(mcp)
     get_category_counts_tool(mcp)
+    deliver_order_tools(mcp)
     
     # Note: Resource handlers removed for simplicity
     # The e-commerce tools are available directly via the registered @mcp.tool decorators

@@ -540,6 +540,23 @@ class MCPDiagnostics:
             scenarios["price_filter"] = {"min_price": 10, "max_price": 100, "max_results": 5}
         elif tool_name == "get-category-counts":
             scenarios["typical"] = {}
+        elif tool_name == "deliver-order":
+            scenarios["successful_delivery"] = {
+                "order_id": "test-order-successful",
+                "delivery_status": "successful", 
+                "customer_verified": True,
+                "payment_collected": True,
+                "signature_obtained": True,
+                "photo_taken": True
+            }
+            scenarios["failed_delivery"] = {
+                "order_id": "test-order-failed",
+                "delivery_status": "failed",
+                "customer_verified": False,
+                "failure_reason": "Customer not available at address"
+            }
+        elif tool_name == "get-delivery-status":
+            scenarios["typical"] = {"order_id": "test-order-status-check"}
         else:
             # Generic typical scenario
             typical_args = {}

@@ -238,6 +238,10 @@ Resources:
         ECSSecurityGroupId: !GetAtt NetworkStack.Outputs.ECSSecurityGroupId
         ClusterName: !GetAtt NetworkStack.Outputs.ClusterName
         NatGateways: !Ref NatGateways
+        CertificateArn: !If 
+          - ShouldCreateSSLCertificate
+          - !GetAtt GlobalStack.Outputs.ApiCertificateArn
+          - ''
         SecretsArn: !Ref SecretsArn
         LogLevel: !Ref LogLevel
         EnableAutoScaling: !Ref EnableAutoScaling
@@ -261,6 +265,8 @@ Resources:
         Subdomain: !Ref Subdomain
         HostedZoneId: !Ref HostedZoneId
         BackendStackName: !GetAtt BackendStack.Outputs.StackName
+        LoadBalancerDns: !GetAtt BackendStack.Outputs.LoadBalancerDns
+        LoadBalancerArn: !GetAtt BackendStack.Outputs.LoadBalancerArn
         CreateSSLCertificate: !Ref CreateSSLCertificate
       Tags:
         - Key: Project

@@ -30,3 +30,254 @@ For every Tool, we need to add Tool support in src/server.py and inside the wrap
 4. Document update for the Tools
 - For every tool update , we update the testscripts/tool-data/README_MCP_TOOLS.md and main readme README.md
 
+5. Comprehensive Test Process
+CRITICAL: Follow this exact testing sequence for every MCP tool to ensure reliability and production readiness.
+
+5.1 Pre-Implementation Validation
+- Verify the CLI script in scripts/actors/ works completely with real DynamoDB data
+- Test all use cases manually through the CLI script
+- Confirm database operations are successful before MCP conversion
+
+5.2 Model Testing (test_toolname_model.py)
+- Test all Pydantic model creation and validation
+- Test required vs optional parameter validation
+- Test edge cases and boundary conditions
+- Test serialization/deserialization
+- Verify error handling for invalid data
+- Test cross-field validation logic
+Run: .venv/bin/python -m pytest tests/test_toolname_model.py -v
+
+5.3 Service Testing (test_toolname_service.py)
+- Mock all DynamoDB operations using unittest.mock
+- Test successful operation scenarios
+- Test error conditions (database errors, invalid data, missing records)
+- Test business logic validation
+- Test async operations and error propagation
+- Verify analytics and logging integration
+Run: .venv/bin/python -m pytest tests/test_toolname_service.py -v
+
+5.4 Tool Testing (test_toolname_tool.py)
+- Test MCP tool wrapper functionality
+- Test parameter parsing and validation
+- Test response format conversion
+- Test error handling and JSON-RPC compliance
+- Test tool registration with FastMCP
+- Mock service layer for isolated testing
+Run: .venv/bin/python -m pytest tests/test_toolname_tool.py -v
+
+5.5 Integration Testing
+- Test complete MCP stdio communication
+- Verify tool registration in server
+- Test actual tool calls through MCP protocol
+- Verify JSON-RPC request/response format
+- Test with real DynamoDB (if available) or mocked data
+Run: echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "toolname", "arguments": {...}}}' | .venv/bin/python mcp_stdio_server.py
+
+5.6 Diagnostic Testing
+- Use comprehensive diagnostic system to validate all aspects
+- Test tool schema validation and parameter analysis
+- Verify Cursor compatibility and tool visibility
+- Test multiple scenarios automatically
+Run: cd diag && ./diagnose test
+
+5.7 End-to-End Testing
+- Test via HTTP API endpoints
+- Test curl-based integration scenarios
+- Verify error handling across all layers
+- Test performance with realistic data loads
+Run: ./testscripts/tools-test/test_toolname.sh
+
+5.8 Production Readiness Validation
+- Verify all tests pass: pytest tests/ -v
+- Confirm diagnostic reports show 100% success
+- Test tool through Cursor IDE integration
+- Verify real data operations work correctly
+- Check logs for proper error handling and analytics
+
+5.9 Dependencies and Environment
+- Always use .venv virtual environment for testing
+- Add required dependencies via: uv add package_name
+- Update requirements.txt if needed
+- Test in clean environment to verify dependency completeness
+
+5.10 Error Scenarios Testing
+MANDATORY: Test these specific error scenarios for every tool:
+- Invalid parameter types and values
+- Missing required parameters
+- Database connection failures
+- Non-existent record lookups
+- Permission/access denied scenarios
+- Timeout and performance edge cases
+- JSON serialization issues (especially Decimal handling)
+
+5.11 Performance and Reliability Testing
+- Test with large data sets (if applicable)
+- Verify response times are acceptable (< 5 seconds for normal operations)
+- Test concurrent access scenarios
+- Verify memory usage is reasonable
+- Test tool behavior under load
+
+5.12 Documentation Validation
+- Ensure tool appears correctly in diagnostic output
+- Verify parameter descriptions are clear and accurate
+- Test example usage from documentation
+- Confirm tool complexity scoring is appropriate
+- Validate that Cursor will display tool correctly
+
+6. Diagnostic Tools Usage
+IMPORTANT: Use the comprehensive diagnostic system for efficient development and troubleshooting.
+
+6.1 Quick Health Checks
+- Before starting development: cd diag && ./diagnose
+- After implementing tool: cd diag && ./diagnose cursor
+- When issues arise: cd diag && ./diagnose fix
+- For cleanup: cd diag && ./diagnose clean
+
+6.2 Comprehensive Analysis
+- Full tool analysis: cd diag && ./diagnose test
+- Detailed diagnostics: cd diag && ./mcp-doctor.sh full
+- Performance testing: cd diag && ./mcp-doctor.sh test
+
+6.3 Troubleshooting Workflow
+When MCP tools behave unpredictably:
+1. Run: cd diag && ./diagnose clean (kill stuck processes)
+2. Run: cd diag && ./diagnose fix (auto-fix common issues)
+3. Restart Cursor IDE or disable/enable MCP server
+4. Verify: cd diag && ./diagnose cursor (check tool visibility)
+5. Test: cd diag && ./diagnose test (comprehensive validation)
+
+6.4 Report Analysis
+- All diagnostic reports saved to logs/ folder
+- Reports include tool schema analysis, test results, and recommendations
+- Use reports to identify specific tool issues and performance problems
+- Reports show exactly what Cursor will see and any compatibility issues
+
+7. Best Practices for MCP Tool Development
+7.1 Always follow this exact sequence: CLI Script → Model → Service → Tool → Tests → Documentation
+7.2 Use virtual environment (.venv) for all development and testing
+7.3 Test with real AuroraSparkTheme DynamoDB tables when possible
+7.4 Handle Decimal serialization properly (add _convert_decimal methods)
+7.5 Use comprehensive error handling with proper logging
+7.6 Validate tools work in both direct calls and Cursor integration
+7.7 Keep diagnostic reports for troubleshooting patterns and improvements
+
+8. Python Environment Management
+CRITICAL: Follow these exact environment and dependency management practices.
+
+8.1 Virtual Environment Setup
+- ALWAYS use uv for virtual environment management
+- Virtual environment location: .venv (project root)
+- Never use system Python for development or testing
+- All development must happen within .venv context
+
+Setup Commands:
+```bash
+# Create virtual environment (if not exists)
+uv venv
+
+# Activate virtual environment  
+source .venv/bin/activate
+
+# Verify correct Python
+which python  # Should show: /opt/mycode/promode/promodeagro-mcp/.venv/bin/python
+```
+
+8.2 Dependency Management
+- ALWAYS use 'uv add' for adding new dependencies
+- NEVER use pip install directly
+- Every dependency must have proper entry in requirements.txt
+- Dependencies are automatically managed by uv
+
+Adding Dependencies:
+```bash
+# Add new dependency (automatically updates requirements.txt)
+uv add package_name
+
+# Add development dependency
+uv add --dev package_name
+
+# Add specific version
+uv add package_name==1.2.3
+
+# Add from requirements
+uv sync
+```
+
+8.3 Testing Environment
+- All pytest commands must use .venv/bin/python
+- All MCP server testing must use .venv/bin/python
+- Diagnostic scripts automatically detect and use .venv
+
+Testing Commands:
+```bash
+# Model testing
+.venv/bin/python -m pytest tests/test_toolname_model.py -v
+
+# Service testing  
+.venv/bin/python -m pytest tests/test_toolname_service.py -v
+
+# Tool testing
+.venv/bin/python -m pytest tests/test_toolname_tool.py -v
+
+# All tests
+.venv/bin/python -m pytest tests/ -v
+
+# MCP server testing
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | .venv/bin/python mcp_stdio_server.py
+```
+
+8.4 Development Workflow
+- Start every session by verifying virtual environment
+- Use diagnostic tools that automatically handle .venv
+- Never mix system Python with project dependencies
+- Keep requirements.txt synchronized with uv.lock
+
+Verification Commands:
+```bash
+# Quick environment check
+cd diag && ./diagnose           # Auto-detects .venv
+
+# Verify dependencies
+uv pip list                     # Show installed packages
+
+# Check environment
+python --version                # Should be from .venv
+which python                    # Should show .venv path
+```
+
+8.5 Dependency Troubleshooting
+- If import errors occur, verify .venv activation
+- Use 'uv sync' to synchronize dependencies
+- Check uv.lock for version conflicts
+- Use diagnostic tools for environment validation
+
+Common Issues and Solutions:
+```bash
+# Module not found error
+uv add missing_package_name
+
+# Environment not activated
+source .venv/bin/activate
+
+# Dependencies out of sync
+uv sync
+
+# Clean environment
+rm -rf .venv && uv venv && uv sync
+```
+
+8.6 Production Deployment
+- requirements.txt must be complete and accurate
+- Use uv.lock for exact version pinning
+- Test deployment with clean virtual environment
+- Verify all dependencies are properly declared
+
+Deployment Verification:
+```bash
+# Test clean environment
+rm -rf .venv
+uv venv
+uv sync
+.venv/bin/python -m pytest tests/ -v
+cd diag && ./diagnose test
+```

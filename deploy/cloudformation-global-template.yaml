@@ -53,7 +53,7 @@ Resources:
       ValidationMethod: DNS
       DomainValidationOptions:
         - DomainName: !Sub '${Subdomain}.${BaseDomain}'
-          HostedZoneId: !Ref HostedZoneId
+          ValidationDomain: !Ref BaseDomain
       Tags:
         - Key: Name
           Value: !Sub '${ProjectName}-api-cert-${Environment}'
