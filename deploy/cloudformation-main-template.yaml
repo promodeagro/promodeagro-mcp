@@ -140,6 +140,11 @@ Parameters:
       - 'true'
       - 'false'
   
+  SSLCertificateArn:
+    Type: String
+    Description: 'ARN of existing SSL certificate (if not creating new one)'
+    Default: ''
+  
   EnableDomainSetup:
     Type: String
     Description: 'Enable domain setup with Route53 records'
@@ -241,7 +246,7 @@ Resources:
         CertificateArn: !If 
           - ShouldCreateSSLCertificate
           - !GetAtt GlobalStack.Outputs.ApiCertificateArn
-          - ''
+          - !Ref SSLCertificateArn
         SecretsArn: !Ref SecretsArn
         LogLevel: !Ref LogLevel
         EnableAutoScaling: !Ref EnableAutoScaling
@@ -355,6 +360,4 @@ Outputs:
     Condition: ShouldSetupDomain
     Description: 'API URL'
     Value: !GetAtt DomainStack.Outputs.ApiUrl
-    Export:
-      Name: !Sub '${ProjectName}-api-url-${Environment}'
 

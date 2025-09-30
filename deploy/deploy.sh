@@ -437,6 +437,11 @@ deploy_main_stack() {
     parameters="$parameters ParameterKey=EnableAutoScaling,ParameterValue=$ENABLE_AUTO_SCALING"
     parameters="$parameters ParameterKey=CreateSSLCertificate,ParameterValue=$CREATE_SSL_CERTIFICATE"
     parameters="$parameters ParameterKey=EnableDomainSetup,ParameterValue=$ENABLE_DOMAIN_SETUP"
+    
+    # Add SSL certificate ARN if provided
+    if [ -n "$SSL_CERTIFICATE_ARN" ]; then
+        parameters="$parameters ParameterKey=SSLCertificateArn,ParameterValue=$SSL_CERTIFICATE_ARN"
+    fi
     parameters="$parameters ParameterKey=S3TemplatesBucket,ParameterValue=$S3_TEMPLATES_BUCKET"
     
     deploy_stack "$MAIN_STACK_NAME" "$CLOUDFORMATION_TEMPLATES_DIR/$MAIN_TEMPLATE" "$parameters"
