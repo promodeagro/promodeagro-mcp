@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Deploy Regional Resources: S3 Bucket for React UI Application'
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: 'S3 bucket name for hosting (must be globally unique)'
+    Default: 'tmf-oda-ui-hosting-bucket'
+
+Resources:
+  # S3 Bucket for hosting (can be in any region)
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  # Bucket policy is now created in the global stack to avoid circular dependencies
+
+Outputs:
+  BucketName:
+    Description: 'S3 Bucket Name'
+    Value: !Ref WebsiteBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketName'
+
+  BucketRegionalDomainName:
+    Description: 'S3 Bucket Regional Domain Name'
+    Value: !GetAtt WebsiteBucket.RegionalDomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketRegionalDomainName'
+
+  BucketArn:
+    Description: 'S3 Bucket ARN'
+    Value: !GetAtt WebsiteBucket.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketArn'

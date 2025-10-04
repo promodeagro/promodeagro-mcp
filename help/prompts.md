@@ -1,2 +1,13 @@
 # Create MCP Tool
-Please refer my project specific cursor rule /opt/mycode/promode/promodeagro-mcp/.cursor/rules/project-rule.mdc, the rule state the structure and process for MCP tool development. Can you read that throughly and let me know what steps would you follow if i ask you to create a MCP tool for delivery say deliver-order for the script scripts/actors/delivery_portal.py, dont implement , just tell me your understanding on step details
+Please refer my project specific cursor rule .cursor/rules/project-rule.mdc, 
+the rule state the structure and process for MCP tool development. 
+Can you read that throughly and let me know what steps would you follow 
+if i ask you to create a MCP tool for delivery say deliver-order for the 
+script scripts/actors/delivery_portal.py, dont implement , 
+just tell me your understanding on step details
+
+
+Please refer my project specific cursor rule .cursor/rules/project-rule.mdc, 
+the rule state the structure and process for MCP tool development. 
+Can you read that throughly and let me know what steps would you follow 
+if i ask you to diagnose the cursor mcp tool.Please refer diag directory
