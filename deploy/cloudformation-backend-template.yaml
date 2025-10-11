@@ -322,7 +322,7 @@ Resources:
       TargetType: ip
       VpcId: !Ref VpcId
       HealthCheckEnabled: true
-      HealthCheckPath: /
+      HealthCheckPath: /health
       HealthCheckProtocol: HTTP
       HealthCheckPort: traffic-port
       HealthCheckIntervalSeconds: 30

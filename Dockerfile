@@ -1,5 +1,6 @@
-# Multi-stage build for Alert Engine - Optimized for GitHub Actions
-FROM python:3.12-slim AS builder
+# Multi-stage build for E-commerce MCP Server - Optimized for production
+# Using AWS ECR Public Gallery for faster pulls and better reliability
+FROM public.ecr.aws/docker/library/python:3.12-slim AS builder
 
 # Install minimal build dependencies 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,7 +15,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy requirements and install Python dependencies
 COPY requirements.txt pyproject.toml ./
 
-# Optimize for GitHub Actions - use parallel builds and prefer wheels
+# Optimize for parallel builds and prefer wheels
 ENV MAKEFLAGS="-j$(nproc)"
 ENV NPY_NUM_BUILD_JOBS="$(nproc)"
 
@@ -24,15 +25,15 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
         --timeout=1200 \
         -r requirements.txt
 
-# Production stage - Slim image for smaller size but GitHub Actions compatibility  
-FROM python:3.12-slim AS production
+# Production stage - Slim image for smaller size
+FROM public.ecr.aws/docker/library/python:3.12-slim AS production
 
 # Install only essential runtime dependencies and create user
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd -g 1001 alertengine \
-    && useradd -u 1001 -g alertengine -s /bin/sh alertengine
+    && groupadd -g 1001 mcpuser \
+    && useradd -u 1001 -g mcpuser -s /bin/sh mcpuser
 
 # Set working directory
 WORKDIR /app
@@ -44,16 +45,14 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Create logs directory with proper permissions
-RUN mkdir -p /app/logs && chown -R alertengine:alertengine /app/logs
+RUN mkdir -p /app/logs && chown -R mcpuser:mcpuser /app/logs
 
 # Copy only necessary application files
-COPY --chown=alertengine:alertengine src/ ./src/
-COPY --chown=alertengine:alertengine data/ ./data/
-COPY --chown=alertengine:alertengine *.py ./
+COPY --chown=mcpuser:mcpuser src/ ./src/
+COPY --chown=mcpuser:mcpuser *.py ./
 
 # Set environment variables
 ENV PYTHONPATH=/app/src \
-    ALERT_DATA_PATH=/app/data \
     API_HOST=0.0.0.0 \
     API_PORT=8000 \
     LOG_LEVEL=INFO \
@@ -62,7 +61,7 @@ ENV PYTHONPATH=/app/src \
     PYTHONDONTWRITEBYTECODE=1
 
 # Switch to non-root user
-USER alertengine
+USER mcpuser
 
 # Health check with minimal footprint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
