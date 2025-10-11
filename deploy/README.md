@@ -22,7 +22,7 @@ Route53 → Application Load Balancer → ECS Fargate Tasks → S3
 ## 📁 Directory Structure
 
 ```
-deploy2/
+deploy/
 ├── cloudformation-main-template.yaml     # Main orchestrator stack
 ├── cloudformation-global-template.yaml   # Global/region-specific resources
 ├── cloudformation-network-template.yaml  # VPC, ECS Cluster, Security Groups
@@ -83,11 +83,12 @@ Each environment has its own configuration file in the `config/` directory. Key 
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `PROJECT_NAME` | Name of the project | `alert-engine` |
-| `BASE_DOMAIN` | Your base domain | `totogicore.com` |
-| `SUBDOMAIN` | Environment subdomain | `dev-alert-engine` |
+| `PROJECT_NAME` | Name of the project | `ecommerce-mcp` |
+| `BASE_DOMAIN` | Your base domain | `promodeagro.com` |
+| `SUBDOMAIN` | Environment subdomain | `api-dev` |
 | `AWS_REGION` | AWS region for deployment | `us-east-1` |
-| `DOCKER_IMAGE_URI` | ECR image URI | `account.dkr.ecr.region.amazonaws.com/repo:tag` |
+| `DOCKER_IMAGE_URI` | ECR image URI | `851725323791.dkr.ecr.us-east-1.amazonaws.com/ecommerce-mcp-server-dev:latest` |
+| `HOSTED_ZONE_ID` | Route53 hosted zone ID | `Z00062013820EO6BYULDB` |
 
 ### ECS Configuration
 
@@ -102,19 +103,30 @@ Each environment has its own configuration file in the `config/` directory. Key 
 
 | Variable | Description | Dev | Stage | Prod |
 |----------|-------------|-----|-------|------|
-| `VPC_NAT_GATEWAYS` | Number of NAT gateways | 1 | 0 | 2 |
+| `VPC_NAT_GATEWAYS` | Number of NAT gateways | 0 | 0 | 2 |
 | `VPC_MAX_AZS` | Max availability zones | 2 | 2 | 2 |
+| `ENABLE_DOMAIN_SETUP` | Enable Route53 domain | true | true | true |
+| `CREATE_SSL_CERTIFICATE` | Create new SSL cert | false | false | false |
 
 ## 🛠️ Available Commands
 
 ### Main Deployment Script
 
 ```bash
-# Full deployment
+# Full deployment (infrastructure + application)
 ./deploy.sh <environment>
 
-# Infrastructure only
+# Infrastructure only (no Docker build/push)
 ./deploy.sh <environment> infrastructure-only
+
+# Application only (Docker build/push + ECS update)
+./deploy.sh <environment> application-only
+
+# Cleanup stacks and exports
+./deploy.sh <environment> cleanup-only
+
+# Force cleanup (removes stuck stacks)
+./deploy.sh <environment> force-cleanup
 
 # With external AWS role
 ./deploy.sh <environment> external-aws
@@ -177,8 +189,13 @@ The CloudFormation templates are modular and can be modified independently:
 
 Each deployment includes health endpoints:
 
-- **Load Balancer**: `http://<alb-dns>/health`
-- **Domain** (if configured): `https://api.<subdomain>.<domain>/health`
+- **Load Balancer**: `https://<alb-dns>/health`
+- **Domain**: `https://<subdomain>.<domain>/health`
+- **MCP Tools**: `https://<subdomain>.<domain>/tools`
+
+Example for dev environment:
+- Health: `https://api-dev.promodeagro.com/health`
+- Tools: `https://api-dev.promodeagro.com/tools`
 
 ### CloudWatch Logs
 
@@ -218,10 +235,11 @@ This checks:
 
 ### Cost Control Features
 
-- Configurable NAT gateway count (major cost factor)
-- ECS auto-scaling to match demand
+- Configurable NAT gateway count (major cost factor - dev uses 0 NAT gateways)
+- ECS auto-scaling to match demand (disabled in dev for cost savings)
 - S3 lifecycle rules for long-term storage costs
 - CloudWatch log retention policies
+- Single task in dev, multiple tasks with auto-scaling in production
 
 ## 🔄 Updates and Maintenance
 

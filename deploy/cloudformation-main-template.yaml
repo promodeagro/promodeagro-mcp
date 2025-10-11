@@ -29,7 +29,7 @@ Parameters:
   HostedZoneId:
     Type: String
     Description: 'Route53 Hosted Zone ID for the base domain'
-    Default: 'Z084501638STQ2EKKSIA'
+    Default: 'Z00062013820EO6BYULDB'
   
   # Container Configuration
   DockerImageUri:
@@ -253,7 +253,7 @@ Resources:
       Tags:
         - Key: Project
           Value: !Ref ProjectName
-          Key: Environment
+        - Key: Environment
           Value: !Ref Environment
 
   # Domain Stack (conditional)

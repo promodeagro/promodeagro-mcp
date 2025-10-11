@@ -748,6 +748,8 @@ load_config "$ENVIRONMENT_ARG"
 case "${1:-}" in
     "infrastructure-only")
         check_aws_cli
+        cleanup_existing_stacks
+        upload_templates_to_s3
         deploy_infrastructure
         print_success "Infrastructure deployment completed for $ENVIRONMENT environment"
         ;;

@@ -29,7 +29,7 @@ Parameters:
   HostedZoneId:
     Type: String
     Description: 'Route53 Hosted Zone ID for the base domain'
-    Default: 'Z084501638STQ2EKKSIA'
+    Default: 'Z00062013820EO6BYULDB'
   
   # External stack dependencies
   BackendStackName:
@@ -65,10 +65,10 @@ Resources:
     Type: AWS::CertificateManager::Certificate
     Condition: ShouldCreateSSLCertificate
     Properties:
-      DomainName: !Sub 'api.${Subdomain}.${BaseDomain}'
+      DomainName: !Sub '${Subdomain}.${BaseDomain}'
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub 'api.${Subdomain}.${BaseDomain}'
+        - DomainName: !Sub '${Subdomain}.${BaseDomain}'
           HostedZoneId: !Ref HostedZoneId
       Tags:
         - Key: Name
@@ -83,7 +83,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub 'api.${Subdomain}.${BaseDomain}'
+      Name: !Sub '${Subdomain}.${BaseDomain}'
       Type: A
       AliasTarget:
         DNSName: !Ref LoadBalancerDns
@@ -204,7 +204,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub 'health.api.${Subdomain}.${BaseDomain}'
+      Name: !Sub 'health.${Subdomain}.${BaseDomain}'
       Type: A
       AliasTarget:
         DNSName: !Ref LoadBalancerDns
@@ -216,13 +216,14 @@ Resources:
   HealthCheck:
     Type: AWS::Route53::HealthCheck
     Properties:
-      Type: HTTPS
-      ResourcePath: /health
-      FullyQualifiedDomainName: !Sub 'api.${Subdomain}.${BaseDomain}'
-      Port: 80
-      RequestInterval: 30
-      FailureThreshold: 3
-      Tags:
+      HealthCheckConfig:
+        Type: HTTPS
+        ResourcePath: /health
+        FullyQualifiedDomainName: !Sub '${Subdomain}.${BaseDomain}'
+        Port: 443
+        RequestInterval: 30
+        FailureThreshold: 3
+      HealthCheckTags:
         - Key: Name
           Value: !Sub '${ProjectName}-health-check-${Environment}'
         - Key: Project
@@ -231,15 +232,19 @@ Resources:
           Value: !Ref Environment
 
 Outputs:
+  StackName:
+    Description: 'Domain stack name'
+    Value: !Ref 'AWS::StackName'
+
   ApiDomain:
     Description: 'API domain name'
-    Value: !Sub 'api.${Subdomain}.${BaseDomain}'
+    Value: !Sub '${Subdomain}.${BaseDomain}'
     Export:
       Name: !Sub '${ProjectName}-api-domain-${Environment}'
 
   ApiUrl:
     Description: 'Full API URL'
-    Value: !Sub 'http://api.${Subdomain}.${BaseDomain}'
+    Value: !Sub 'https://${Subdomain}.${BaseDomain}'
     Export:
       Name: !Sub '${ProjectName}-api-url-${Environment}'
 
@@ -252,13 +257,13 @@ Outputs:
 
   HealthCheckDomain:
     Description: 'Health check domain name'
-    Value: !Sub 'health.api.${Subdomain}.${BaseDomain}'
+    Value: !Sub 'health.${Subdomain}.${BaseDomain}'
     Export:
       Name: !Sub '${ProjectName}-health-check-domain-${Environment}'
 
   HealthCheckUrl:
     Description: 'Health check URL'
-    Value: !Sub 'http://health.api.${Subdomain}.${BaseDomain}/health'
+    Value: !Sub 'https://health.${Subdomain}.${BaseDomain}/health'
     Export:
       Name: !Sub '${ProjectName}-health-check-url-${Environment}'
 
