@@ -165,88 +165,9 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # ECS Task Execution Role
-  TaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub '${ProjectName}-task-execution-role-${Environment}'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: SecretsManagerAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Ref SecretsArn
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-task-execution-role-${Environment}'
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # ECS Task Role
-  TaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub '${ProjectName}-task-role-${Environment}'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: S3BucketAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                  - s3:GetObjectVersion
-                  - s3:GetBucketLocation
-                  - s3:ListBucketVersions
-                Resource: '*'
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:Scan
-                  - dynamodb:Query
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:DescribeTable
-                Resource: 
-                  - 'arn:aws:dynamodb:*:*:table/AuroraSparkTheme-Products'
-                  - 'arn:aws:dynamodb:*:*:table/AuroraSparkTheme-Products/index/*'
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-task-role-${Environment}'
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
+  # Note: IAM Roles are imported from the IAM roles stack (deployed separately)
+  # Deploy IAM roles first: ./deploy-iam-roles.sh <environment>
+  
   # ECS Task Definition
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -257,8 +178,10 @@ Resources:
         - FARGATE
       Cpu: !Ref TaskCpu
       Memory: !Ref TaskMemory
-      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub '${ProjectName}-task-execution-role-arn-${Environment}'
+      TaskRoleArn:
+        Fn::ImportValue: !Sub '${ProjectName}-task-role-arn-${Environment}'
       ContainerDefinitions:
         - Name: !Sub '${ProjectName}-mcp-server'
           Image: !Ref DockerImageUri

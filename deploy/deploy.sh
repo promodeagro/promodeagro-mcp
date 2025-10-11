@@ -212,6 +212,7 @@ upload_templates_to_s3() {
     
     # Upload all template files
     local templates=(
+        "cloudformation-iam-roles-template.yaml"
         "cloudformation-global-template.yaml"
         "cloudformation-network-template.yaml"
         "cloudformation-storage-template.yaml"
@@ -437,6 +438,7 @@ deploy_main_stack() {
     parameters="$parameters ParameterKey=EnableAutoScaling,ParameterValue=$ENABLE_AUTO_SCALING"
     parameters="$parameters ParameterKey=CreateSSLCertificate,ParameterValue=$CREATE_SSL_CERTIFICATE"
     parameters="$parameters ParameterKey=EnableDomainSetup,ParameterValue=$ENABLE_DOMAIN_SETUP"
+    parameters="$parameters ParameterKey=CreateIAMRoles,ParameterValue=${CREATE_IAM_ROLES:-true}"
     
     # Add SSL certificate ARN if provided
     if [ -n "$SSL_CERTIFICATE_ARN" ]; then

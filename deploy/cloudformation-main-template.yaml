@@ -153,6 +153,14 @@ Parameters:
       - 'true'
       - 'false'
   
+  CreateIAMRoles:
+    Type: String
+    Description: 'Create IAM roles (requires IAM permissions - set to false after first deployment)'
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
   S3TemplatesBucket:
     Type: String
     Description: 'S3 bucket containing CloudFormation templates'
@@ -161,8 +169,25 @@ Parameters:
 Conditions:
   ShouldCreateSSLCertificate: !Equals [!Ref CreateSSLCertificate, 'true']
   ShouldSetupDomain: !Equals [!Ref EnableDomainSetup, 'true']
+  ShouldCreateIAMRoles: !Equals [!Ref CreateIAMRoles, 'true']
 
 Resources:
+  # IAM Roles Stack (one-time creation, requires IAM permissions)
+  IAMRolesStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: ShouldCreateIAMRoles
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${S3TemplatesBucket}/cloudformation-iam-roles-template.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        SecretsArn: !Ref SecretsArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # Global Stack (region-specific resources)
   GlobalStack:
     Type: AWS::CloudFormation::Stack
