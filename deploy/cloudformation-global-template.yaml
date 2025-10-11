@@ -62,53 +62,6 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # Global IAM Role for cross-region access
-  GlobalServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub '${ProjectName}-global-service-role-${Environment}'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: 
-                - ecs-tasks.amazonaws.com
-                - ecs.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: CrossRegionAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                  - s3:GetObjectVersion
-                Resource: '*'
-                Condition:
-                  StringEquals:
-                    'aws:RequestedRegion': !Ref 'AWS::Region'
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: '*'
-                Condition:
-                  StringEquals:
-                    'aws:RequestedRegion': !Ref 'AWS::Region'
-      Tags:
-        - Key: Name
-          Value: !Sub '${ProjectName}-global-service-role-${Environment}'
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
   # Global CloudWatch Log Group
   GlobalLogGroup:
     Type: AWS::Logs::LogGroup
@@ -132,12 +85,6 @@ Outputs:
     Value: !Ref ApiCertificate
     Export:
       Name: !Sub '${ProjectName}-api-cert-arn-${Environment}'
-
-  GlobalServiceRoleArn:
-    Description: 'Global service role ARN'
-    Value: !GetAtt GlobalServiceRole.Arn
-    Export:
-      Name: !Sub '${ProjectName}-global-service-role-arn-${Environment}'
 
   GlobalLogGroupName:
     Description: 'Global CloudWatch log group name'
