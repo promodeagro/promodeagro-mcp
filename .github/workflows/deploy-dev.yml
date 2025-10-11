@@ -4,11 +4,17 @@ on:
   push:
     branches: [ dev ]
   workflow_dispatch: # Allow manual trigger
+    inputs:
+      rebuild_infrastructure:
+        description: 'Force rebuild infrastructure (true/false)'
+        required: false
+        default: 'false'
 
 env:
   AWS_REGION: us-east-1
   ENVIRONMENT: dev
   ECR_REPOSITORY: ecommerce-mcp-server-dev
+  STACK_NAME: ecommerce-mcp-main-dev
 
 jobs:
   deploy-dev:
@@ -35,6 +41,53 @@ jobs:
         aws sts get-caller-identity
         echo "AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
         
+    - name: Check commit message for rebuild flag
+      id: check_rebuild
+      run: |
+        # Check if commit message contains rebuild flags
+        COMMIT_MSG="${{ github.event.head_commit.message }}"
+        MANUAL_REBUILD="${{ github.event.inputs.rebuild_infrastructure }}"
+        
+        if [[ "$COMMIT_MSG" =~ \[rebuild-infra\]|\[redeploy\]|\[rebuild\] ]] || [[ "$MANUAL_REBUILD" == "true" ]]; then
+          echo "rebuild=true" >> $GITHUB_OUTPUT
+          echo "🔄 Rebuild infrastructure flag detected!"
+        else
+          echo "rebuild=false" >> $GITHUB_OUTPUT
+          echo "📦 No rebuild flag - will check existing infrastructure"
+        fi
+        
+    - name: Check if CloudFormation stack exists
+      id: check_stack
+      run: |
+        if aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --region ${{ env.AWS_REGION }} 2>/dev/null; then
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text)
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "status=$STACK_STATUS" >> $GITHUB_OUTPUT
+          echo "✅ Stack exists with status: $STACK_STATUS"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "status=NOT_FOUND" >> $GITHUB_OUTPUT
+          echo "❌ Stack does not exist - will create new infrastructure"
+        fi
+        
+    - name: Determine deployment strategy
+      id: strategy
+      run: |
+        REBUILD="${{ steps.check_rebuild.outputs.rebuild }}"
+        EXISTS="${{ steps.check_stack.outputs.exists }}"
+        STATUS="${{ steps.check_stack.outputs.status }}"
+        
+        if [[ "$REBUILD" == "true" ]]; then
+          echo "mode=rebuild" >> $GITHUB_OUTPUT
+          echo "🔄 Strategy: REBUILD - Delete and recreate infrastructure + application"
+        elif [[ "$EXISTS" == "false" ]] || [[ "$STATUS" == "ROLLBACK_COMPLETE" ]] || [[ "$STATUS" == "DELETE_FAILED" ]]; then
+          echo "mode=create" >> $GITHUB_OUTPUT
+          echo "🆕 Strategy: CREATE - Deploy new infrastructure + application"
+        else
+          echo "mode=update-app" >> $GITHUB_OUTPUT
+          echo "⚡ Strategy: UPDATE-APP - Only update application (faster)"
+        fi
+        
     - name: Login to Amazon ECR
       run: |
         aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
@@ -42,6 +95,7 @@ jobs:
         
     - name: Build Docker image
       run: |
+        echo "🐳 Building Docker image..."
         docker build -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
           -t ${{ env.ECR_REPOSITORY }}:latest .
         
@@ -54,26 +108,83 @@ jobs:
         
     - name: Push Docker images to ECR
       run: |
+        echo "📤 Pushing Docker images to ECR..."
         docker push ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         docker push ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+        echo "✅ Docker images pushed successfully"
         
-    - name: Deploy infrastructure with CloudFormation
+    - name: Deploy - REBUILD (Delete existing infrastructure)
+      if: steps.strategy.outputs.mode == 'rebuild'
       run: |
+        echo "🗑️ Deleting existing infrastructure for rebuild..."
+        cd deploy
+        chmod +x deploy.sh
+        ./deploy.sh dev force-cleanup || echo "No stack to cleanup"
+        sleep 10
+        
+    - name: Deploy - CREATE/REBUILD (Full infrastructure deployment)
+      if: steps.strategy.outputs.mode == 'create' || steps.strategy.outputs.mode == 'rebuild'
+      run: |
+        echo "🚀 Deploying full infrastructure..."
         cd deploy
         chmod +x deploy.sh
         ./deploy.sh dev infrastructure-only
+        
+    - name: Deploy - UPDATE-APP (Application update only - Fast!)
+      if: steps.strategy.outputs.mode == 'update-app'
+      run: |
+        echo "⚡ Updating application only (infrastructure unchanged)..."
+        
+        # Get the ECS cluster and service names
+        CLUSTER_NAME=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ClusterName`].OutputValue' \
+          --output text)
+        
+        # Get backend stack name
+        BACKEND_STACK=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`BackendStackName`].OutputValue' \
+          --output text)
+        
+        SERVICE_NAME=$(aws cloudformation describe-stacks \
+          --stack-name $BACKEND_STACK \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ServiceName`].OutputValue' \
+          --output text)
+        
+        echo "📋 Cluster: $CLUSTER_NAME"
+        echo "📋 Service: $SERVICE_NAME"
+        
+        # Force new deployment with updated Docker image
+        echo "🔄 Forcing ECS service update with new image..."
+        aws ecs update-service \
+          --cluster $CLUSTER_NAME \
+          --service $SERVICE_NAME \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "⏳ Waiting for service to stabilize..."
+        aws ecs wait services-stable \
+          --cluster $CLUSTER_NAME \
+          --services $SERVICE_NAME \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "✅ Application updated successfully!"
         
     - name: Get deployment outputs
       id: outputs
       run: |
         BACKEND_URL=$(aws cloudformation describe-stacks \
-          --stack-name ecommerce-mcp-main-dev \
+          --stack-name ${{ env.STACK_NAME }} \
           --region ${{ env.AWS_REGION }} \
           --query "Stacks[0].Outputs[?OutputKey=='BackendUrl'].OutputValue" \
           --output text 2>/dev/null || echo "Not available")
         
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name ecommerce-mcp-main-dev \
+          --stack-name ${{ env.STACK_NAME }} \
           --region ${{ env.AWS_REGION }} \
           --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
           --output text 2>/dev/null || echo "Not available")
@@ -88,10 +199,19 @@ jobs:
         if [ "${{ steps.outputs.outputs.api_url }}" != "Not available" ]; then
           echo "Checking MCP server health..."
           sleep 30  # Wait for deployment to stabilize
-          curl -f "${{ steps.outputs.outputs.api_url }}/health" || echo "⚠️ Health check failed (may need more time)"
+          
+          for i in {1..5}; do
+            if curl -f "${{ steps.outputs.outputs.api_url }}/health"; then
+              echo "✅ Health check passed!"
+              break
+            fi
+            echo "⚠️ Health check attempt $i failed, retrying..."
+            sleep 10
+          done
         fi
         
     - name: Run deployment verification
+      if: steps.strategy.outputs.mode != 'update-app'
       run: |
         cd deploy
         chmod +x verify-deployment.sh
@@ -99,10 +219,27 @@ jobs:
         
     - name: Create deployment summary
       run: |
-        cat >> $GITHUB_STEP_SUMMARY << EOF
-        # 🚀 E-commerce MCP Development Deployment Complete
+        STRATEGY="${{ steps.strategy.outputs.mode }}"
         
-        **Environment:** Development
+        case $STRATEGY in
+          rebuild)
+            STRATEGY_EMOJI="🔄"
+            STRATEGY_DESC="Full Rebuild (Infrastructure + Application)"
+            ;;
+          create)
+            STRATEGY_EMOJI="🆕"
+            STRATEGY_DESC="New Deployment (Infrastructure + Application)"
+            ;;
+          update-app)
+            STRATEGY_EMOJI="⚡"
+            STRATEGY_DESC="Fast Application Update (No Infrastructure Changes)"
+            ;;
+        esac
+        
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        # $STRATEGY_EMOJI E-commerce MCP Development Deployment
+        
+        **Deployment Strategy:** $STRATEGY_DESC
         **Branch:** ${{ github.ref_name }}
         **Commit:** ${{ github.sha }}
         **Deployed by:** ${{ github.actor }}
@@ -113,6 +250,7 @@ jobs:
         - **AWS Region:** ${{ env.AWS_REGION }}
         - **Docker Image:** ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         - **ECS Resources:** 256 CPU / 512 MB Memory (minimal)
+        - **Strategy:** $STRATEGY
         
         ## 🔗 Application URLs
         - **API Domain:** ${{ steps.outputs.outputs.api_url }}
@@ -120,28 +258,44 @@ jobs:
         - **MCP Tools:** ${{ steps.outputs.outputs.api_url }}/tools
         - **Load Balancer:** ${{ steps.outputs.outputs.backend_url }}
         
-        ## 📦 Deployed Stacks
-        - ✅ ecommerce-mcp-main-dev (Main orchestrator)
-        - ✅ GlobalStack (SSL certificates)
-        - ✅ NetworkStack (VPC, ECS cluster)
-        - ✅ StorageStack (S3 bucket)
-        - ✅ BackendStack (ECS service, ALB)
-        - ✅ DomainStack (Route53 DNS)
+        ## 📦 Deployment Strategy Details
         
-        ## 🛠️ Development Notes
-        - Minimal ECS resources for cost optimization
-        - 0 NAT gateways (public subnets only)
-        - Debug logging enabled
-        - Single task deployment
+        ### $STRATEGY_DESC
+        $(if [ "$STRATEGY" = "update-app" ]; then
+          echo "- ✅ Infrastructure unchanged (faster deployment)"
+          echo "- ✅ Only Docker image updated"
+          echo "- ✅ ECS tasks rolling update"
+          echo "- ⏱️ Deployment time: ~2-3 minutes"
+        elif [ "$STRATEGY" = "rebuild" ]; then
+          echo "- 🔄 Existing infrastructure deleted"
+          echo "- 🆕 Fresh infrastructure deployed"
+          echo "- 🐳 New Docker image deployed"
+          echo "- ⏱️ Deployment time: ~15-20 minutes"
+        else
+          echo "- 🆕 New infrastructure created"
+          echo "- 🐳 Docker image deployed"
+          echo "- ⏱️ Deployment time: ~15-20 minutes"
+        fi)
+        
+        ## 💡 Tips
+        
+        ### For faster deployments:
+        - Normal commits → **Fast app-only updates** (~2-3 min)
+        - Add \`[rebuild-infra]\` to commit message → **Full infrastructure rebuild**
+        - Add \`[redeploy]\` or \`[rebuild]\` → **Full infrastructure rebuild**
+        
+        ### Next deployment will be:
+        $(if [ "$STRATEGY" = "update-app" ]; then
+          echo "⚡ **Fast app update** (unless you add rebuild flag)"
+        else
+          echo "⚡ **Fast app update** (infrastructure is now in place)"
+        fi)
+        
         EOF
         
     - name: Notify on failure
       if: failure()
       run: |
         echo "❌ Development deployment failed!"
+        echo "Strategy was: ${{ steps.strategy.outputs.mode }}"
         echo "Check the logs above for error details."
-        echo "Common dev deployment issues:"
-        echo "- AWS permissions (check your dev role)"
-        echo "- Docker build failures"
-        echo "- CloudFormation stack conflicts"
-        echo "- ECR repository access"
