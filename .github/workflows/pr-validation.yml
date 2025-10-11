@@ -1,19 +1,19 @@
-name: Alert Engine PR Validation
+name: E-commerce MCP PR Validation
 
 on:
   pull_request:
-    branches: [ stage, main ]
+    branches: [ main, stage, dev ]
     paths:
       - 'deploy/**'
       - 'src/**'
       - 'mcp_http_server.py'
+      - 'mcp_stdio_server.py'
       - 'requirements.txt'
       - 'Dockerfile'
       - '.github/workflows/**'
 
 env:
   AWS_REGION: us-east-1
-  NODE_VERSION: '18'
 
 jobs:
   validate:
@@ -29,67 +29,138 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Configure AWS credentials (for template validation)
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: deploy/package-lock.json
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
+        role-session-name: GitHubActions-PRValidation
+        aws-region: ${{ env.AWS_REGION }}
+      continue-on-error: true
         
-    - name: Install dependencies
+    - name: Validate CloudFormation templates
+      id: cfn_validation
       run: |
         cd deploy
-        npm ci
+        echo "🔍 Validating CloudFormation templates..."
         
-    - name: TypeScript compilation check
+        SUCCESS=true
+        for template in cloudformation-*.yaml; do
+          echo "Validating: $template"
+          if aws cloudformation validate-template --template-body file://$template 2>&1; then
+            echo "✅ $template is valid"
+          else
+            echo "❌ $template validation failed"
+            SUCCESS=false
+          fi
+        done
+        
+        if [ "$SUCCESS" = true ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ All CloudFormation templates are valid!"
+        else
+          echo "status=failed" >> $GITHUB_OUTPUT
+          echo "❌ Some templates failed validation"
+          exit 1
+        fi
+        
+    - name: Validate bash scripts
+      id: script_validation
       run: |
         cd deploy
-        npm run build
+        echo "🔍 Checking bash scripts..."
         
-    - name: CDK Synth (validate templates)
+        # Check if scripts are executable and have valid syntax
+        for script in *.sh; do
+          if [ -f "$script" ]; then
+            echo "Checking: $script"
+            bash -n "$script" || exit 1
+          fi
+        done
+        
+        echo "status=success" >> $GITHUB_OUTPUT
+        echo "✅ All bash scripts are valid!"
+        
+    - name: Check Python syntax
+      id: python_validation
       run: |
-        cd deploy
-        # Create minimal env file for synth
-        cat > .env.stage << EOF
-        CDK_ENV=stage
-        PROJECT_NAME=alert-engine
-        BASE_DOMAIN=totogicore.com
-        CDK_DEFAULT_REGION=${{ env.AWS_REGION }}
-        CDK_DEFAULT_ACCOUNT=123456789012
-        MCP_SERVER_PORT=8000
-        MCP_SERVER_HOST=0.0.0.0
-        LOG_LEVEL=INFO
-        EOF
+        echo "🔍 Checking Python syntax..."
         
-        npx cdk synth --all
+        # Install Python
+        sudo apt-get update
+        sudo apt-get install -y python3 python3-pip
         
-    - name: Security scan with CDK-nag (optional)
+        # Check Python files for syntax errors
+        find . -name "*.py" -type f | while read file; do
+          echo "Checking: $file"
+          python3 -m py_compile "$file" || exit 1
+        done
+        
+        echo "status=success" >> $GITHUB_OUTPUT
+        echo "✅ All Python files have valid syntax!"
+        
+    - name: Validate Dockerfile
+      id: docker_validation
       run: |
-        cd deploy
-        # Install cdk-nag if you want security scanning
-        # npm install cdk-nag
-        # Add security scanning here
-        echo "Security scanning would go here"
+        echo "🔍 Checking Dockerfile..."
+        
+        if [ -f "Dockerfile" ]; then
+          # Basic Dockerfile linting
+          if grep -q "FROM" Dockerfile; then
+            echo "✅ Dockerfile has valid base image"
+          else
+            echo "❌ Dockerfile missing FROM statement"
+            exit 1
+          fi
+          
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ Dockerfile is valid!"
+        else
+          echo "⚠️  No Dockerfile found"
+          echo "status=skipped" >> $GITHUB_OUTPUT
+        fi
         
     - name: Add PR comment with validation results
       if: always()
       uses: actions/github-script@v7
       with:
         script: |
-          const success = '${{ job.status }}' === 'success';
+          const cfnStatus = '${{ steps.cfn_validation.outputs.status }}';
+          const scriptStatus = '${{ steps.script_validation.outputs.status }}';
+          const pythonStatus = '${{ steps.python_validation.outputs.status }}';
+          const dockerStatus = '${{ steps.docker_validation.outputs.status }}';
+          
+          const success = cfnStatus === 'success' && scriptStatus === 'success' && pythonStatus === 'success';
           const icon = success ? '✅' : '❌';
           const status = success ? 'passed' : 'failed';
           
           const comment = `
-          ## ${icon} Alert Engine CDK Validation ${status}
+          ## ${icon} E-commerce MCP Validation ${status}
           
-          **TypeScript compilation:** ${success ? '✅ Passed' : '❌ Failed'}
-          **CDK synthesis:** ${success ? '✅ Passed' : '❌ Failed'}
+          ### Validation Results
+          - **CloudFormation Templates:** ${cfnStatus === 'success' ? '✅ Valid' : '❌ Failed'}
+          - **Bash Scripts:** ${scriptStatus === 'success' ? '✅ Valid' : '❌ Failed'}
+          - **Python Syntax:** ${pythonStatus === 'success' ? '✅ Valid' : '❌ Failed'}
+          - **Dockerfile:** ${dockerStatus === 'success' ? '✅ Valid' : dockerStatus === 'skipped' ? '⏭️  Skipped' : '❌ Failed'}
+          
+          ### Target Branch: \`${{ github.base_ref }}\`
           
           ${success ? 
-            '🚀 This PR is ready for deployment to stage!' : 
-            '🔧 Please fix the issues above before merging.'
+            '🚀 This PR passes all validation checks and is ready for deployment!' : 
+            '🔧 Please fix the validation errors above before merging.'
           }
+          
+          ---
+          <details>
+          <summary>📋 Deployment Details</summary>
+          
+          After this PR is merged to:
+          - **\`dev\` branch** → Automatic deployment to development environment
+          - **\`stage\` branch** → Automatic deployment to staging environment
+          - **\`main\` branch** → Automatic deployment to production (with confirmation)
+          
+          The deployment uses pure CloudFormation templates with bash orchestration.
+          
+          </details>
           `;
           
           github.rest.issues.createComment({

@@ -1,4 +1,4 @@
-name: Deploy Alert Engine to Stage Environment
+name: Deploy E-commerce MCP to Staging
 
 on:
   push:
@@ -7,36 +7,22 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  NODE_VERSION: '18'
-  PYTHON_VERSION: '3.10'
+  ENVIRONMENT: stage
+  ECR_REPOSITORY: ecommerce-mcp-server-stage
 
 jobs:
   deploy-stage:
-    name: Deploy to Stage
+    name: Deploy to Staging
     runs-on: ubuntu-latest
     
-    # Required permissions for OIDC
     permissions:
       id-token: write
       contents: read
-      pull-requests: write # For commenting on PRs if needed
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: deploy/package-lock.json
-        
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        
     - name: Configure AWS credentials using OIDC
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -49,159 +35,101 @@ jobs:
         aws sts get-caller-identity
         echo "AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
         
-    - name: Create environment file for stage
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+        docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        
+    - name: Build Docker image
+      run: |
+        docker build -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
+          -t ${{ env.ECR_REPOSITORY }}:latest .
+        
+    - name: Tag Docker images for ECR
+      run: |
+        docker tag ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
+          ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+        docker tag ${{ env.ECR_REPOSITORY }}:latest \
+          ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+        
+    - name: Push Docker images to ECR
+      run: |
+        docker push ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+        docker push ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+        
+    - name: Deploy infrastructure with CloudFormation
       run: |
         cd deploy
-        cat > .env.stage << EOF
-        # Stage Environment Configuration
-        CDK_ENV=stage
-        PROJECT_NAME=alert-engine
-        BASE_DOMAIN=totogicore.com
-        CDK_DEFAULT_REGION=${{ env.AWS_REGION }}
-        CDK_DEFAULT_ACCOUNT=${{ env.AWS_ACCOUNT }}
-        
-        # Database configuration (Aurora DSQL - optional)
-        # DB_CLUSTER_ID=${{ secrets.DB_CLUSTER_ID_STAGE }}
-        # DB_CLUSTER_ENDPOINT=${{ secrets.DB_CLUSTER_ENDPOINT_STAGE }}
-        # DB_USERNAME=${{ secrets.DB_USERNAME_STAGE }}
-        
-        # Application configuration
-        MCP_SERVER_PORT=8000
-        MCP_SERVER_HOST=0.0.0.0
-        LOG_LEVEL=INFO
-        
-        # Secrets ARN
-        SECRETS_ARN=${{ secrets.SECRETS_ARN_STAGE }}
-        EOF
-        
-    - name: Install infrastructure dependencies
-      run: |
-        cd deploy
-        npm ci
-        
-    - name: Build TypeScript
-      run: |
-        cd deploy
-        npm run build
-        
-    - name: CDK Bootstrap (if needed)
-      run: |
-        cd deploy
-        echo "🚀 Checking CDK bootstrap status..."
-        
-        # Check if bootstrap is needed (project-specific)
-        if ! aws ssm get-parameter --name "/cdk-bootstrap/alerteng/version" --region ${{ env.AWS_REGION }} 2>/dev/null; then
-          echo "⚠️ CDK not bootstrapped. Checking for existing resources..."
-          
-          # Check if CDKToolkit stack exists in failed state
-          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
-          
-          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
-            echo "🗑️ Deleting failed CDKToolkit stack..."
-            aws cloudformation delete-stack --stack-name CDKToolkit
-            
-            echo "⏳ Waiting for stack deletion..."
-            aws cloudformation wait stack-delete-complete --stack-name CDKToolkit
-          fi
-          
-          # Clean up orphaned resources that block bootstrap
-          echo "🧹 Cleaning orphaned CDK bootstrap resources..."
-          
-          # Delete ECR repository if it exists (project-specific)
-          ECR_REPO="cdk-alerteng-container-assets-${{ env.AWS_ACCOUNT }}-${{ env.AWS_REGION }}"
-          if aws ecr describe-repositories --repository-names "$ECR_REPO" --region ${{ env.AWS_REGION }} 2>/dev/null; then
-            echo "🗑️ Deleting orphaned ECR repository: $ECR_REPO"
-            aws ecr delete-repository --repository-name "$ECR_REPO" --force --region ${{ env.AWS_REGION }}
-          fi
-          
-          # Delete S3 bucket if it exists (handle versioning, project-specific)
-          S3_BUCKET="cdk-alerteng-assets-${{ env.AWS_ACCOUNT }}-${{ env.AWS_REGION }}"
-          if aws s3api head-bucket --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }} 2>/dev/null; then
-            echo "🗑️ Deleting orphaned S3 bucket: $S3_BUCKET"
-            
-            # Delete all current objects
-            aws s3 rm "s3://$S3_BUCKET" --recursive --region ${{ env.AWS_REGION }} || true
-            
-            # Delete all versioned objects and delete markers
-            echo "🗑️ Cleaning versioned objects and delete markers..."
-            aws s3api list-object-versions --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }} \
-              --query "Versions[].[Key,VersionId]" --output text | while read key version; do
-              if [ -n "$key" ] && [ -n "$version" ]; then
-                aws s3api delete-object --bucket "$S3_BUCKET" --key "$key" --version-id "$version" --region ${{ env.AWS_REGION }} || true
-              fi
-            done
-            
-            # Delete all delete markers
-            aws s3api list-object-versions --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }} \
-              --query "DeleteMarkers[].[Key,VersionId]" --output text | while read key version; do
-              if [ -n "$key" ] && [ -n "$version" ]; then
-                aws s3api delete-object --bucket "$S3_BUCKET" --key "$key" --version-id "$version" --region ${{ env.AWS_REGION }} || true
-              fi
-            done
-            
-            # Now delete the empty bucket
-            aws s3api delete-bucket --bucket "$S3_BUCKET" --region ${{ env.AWS_REGION }}
-          fi
-          
-          echo "🚀 Running CDK bootstrap with project-specific qualifier..."
-          npx cdk bootstrap aws://${{ env.AWS_ACCOUNT }}/${{ env.AWS_REGION }} --qualifier alerteng --require-approval never --force
-        else
-          echo "✅ CDK already bootstrapped"
-        fi
-        
-    - name: CDK Diff (Show changes)
-      run: |
-        cd deploy
-        npx cdk diff --all || true
-        
-    - name: Deploy to Stage
-      run: |
-        cd deploy
-        npm run deploy:stage
-      env:
-        CDK_ENV: stage
+        chmod +x deploy.sh
+        ./deploy.sh stage infrastructure-only
         
     - name: Get deployment outputs
       id: outputs
       run: |
-        cd deploy
-        # Extract key outputs from CDK
-        BACKEND_URL=$(aws cloudformation describe-stacks --stack-name alert-engine-backend-stage --query "Stacks[0].Outputs[?OutputKey=='BackendUrl'].OutputValue" --output text 2>/dev/null || echo "Not deployed yet")
+        BACKEND_URL=$(aws cloudformation describe-stacks \
+          --stack-name ecommerce-mcp-main-stage \
+          --region ${{ env.AWS_REGION }} \
+          --query "Stacks[0].Outputs[?OutputKey=='BackendUrl'].OutputValue" \
+          --output text 2>/dev/null || echo "Not available")
+        
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name ecommerce-mcp-main-stage \
+          --region ${{ env.AWS_REGION }} \
+          --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+          --output text 2>/dev/null || echo "Not available")
         
         echo "backend_url=$BACKEND_URL" >> $GITHUB_OUTPUT
+        echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+        
+    - name: Run health checks
+      run: |
+        echo "🏥 Running staging health checks..."
+        
+        if [ "${{ steps.outputs.outputs.api_url }}" != "Not available" ]; then
+          echo "Checking MCP server health..."
+          sleep 30  # Wait for deployment to stabilize
+          curl -f "${{ steps.outputs.outputs.api_url }}/health" || (echo "❌ Health check failed!" && exit 1)
+        fi
+        
+    - name: Run deployment verification
+      run: |
+        cd deploy
+        chmod +x verify-deployment.sh
+        ./verify-deployment.sh stage
         
     - name: Create deployment summary
       run: |
         cat >> $GITHUB_STEP_SUMMARY << EOF
-        # 🚀 Alert Engine Stage Deployment Complete
+        # 🚀 E-commerce MCP Staging Deployment Complete
         
-        **Environment:** Stage
+        **Environment:** Staging
         **Branch:** ${{ github.ref_name }}
         **Commit:** ${{ github.sha }}
         **Deployed by:** ${{ github.actor }}
+        **Deployment Time:** $(date -u)
         
         ## 📋 Deployment Details
         - **AWS Account:** ${{ env.AWS_ACCOUNT }}
         - **AWS Region:** ${{ env.AWS_REGION }}
-        - **Deployment Time:** $(date -u)
+        - **Docker Image:** ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         
         ## 🔗 Application URLs
-        - **MCP Server API:** ${{ steps.outputs.outputs.backend_url }}
+        - **API Domain:** ${{ steps.outputs.outputs.api_url }}
+        - **Health Check:** ${{ steps.outputs.outputs.api_url }}/health
+        - **MCP Tools:** ${{ steps.outputs.outputs.api_url }}/tools
+        - **Load Balancer:** ${{ steps.outputs.outputs.backend_url }}
         
         ## 📦 Deployed Stacks
-        - ✅ alert-engine-network-stage
-        - ✅ alert-engine-storage-stage  
-        - ✅ alert-engine-auth-stage
-        - ✅ alert-engine-backend-stage
+        - ✅ ecommerce-mcp-main-stage (Main orchestrator)
+        - ✅ GlobalStack (SSL certificates)
+        - ✅ NetworkStack (VPC, ECS cluster)
+        - ✅ StorageStack (S3 bucket)
+        - ✅ BackendStack (ECS service, ALB)
+        - ✅ DomainStack (Route53 DNS)
         EOF
         
     - name: Notify on failure
       if: failure()
       run: |
-        echo "❌ Deployment to stage failed!"
+        echo "❌ Staging deployment failed!"
         echo "Check the logs above for error details."
-        echo "Common issues:"
-        echo "- AWS permissions"
-        echo "- Missing secrets"
-        echo "- Docker build failures"
-        echo "- CDK synthesis errors"
